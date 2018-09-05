@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Install requirements
-pip3 install nltk numpy torch==0.4.1 h5py allennlp
+pip install nltk numpy torch==0.4.1 h5py
+
+# If you want to use elmo, install allennlp
+pip install allennlp
 
 DATA_DIR=/static/  # For docker
 # DATA_DIR=$HOME/data/  # For local
