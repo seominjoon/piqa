@@ -9,16 +9,16 @@ Let `$SQUAD_DIR` be the directory that has both train and dev json files of SQuA
 
 For LSTM model:
 ```bash
-python main.py --cuda --data $SQUAD_DIR
+python main.py --cuda --data_dir $SQUAD_DIR
 ```
 
 For LSTM+SA model:
 ```bash
-python main.py --cuda --num_heads 2 --data $SQUAD_DIR
+python main.py --cuda --num_heads 2 --data_dir $SQUAD_DIR
 ```
 
 For LSTM+SA+ELMo model:
 ```bash
-python main.py --cuda --num_heads 2 --elmo --data $SQUAD_DIR
+python main.py --cuda --num_heads 2 --elmo --data_dir $SQUAD_DIR
 ```
 
