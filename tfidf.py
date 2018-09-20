@@ -1,11 +1,44 @@
 import argparse
 import json
 
-import csv
 import nltk
 
 from gensim import corpora, models, similarities
 from tqdm import tqdm
+
+
+def load_squad(squad_path, draft=False):
+    with open(squad_path, 'r') as fp:
+        squad = json.load(fp)
+        examples = []
+        for article in squad['data']:
+            for paragraph in article['paragraphs']:
+                context = paragraph['context']
+                for qa in paragraph['qas']:
+                    question = qa['question']
+                    id_ = qa['id']
+                    answers, answer_starts, answer_ends = [], [], []
+                    for answer in qa['answers']:
+                        answer_start = answer['answer_start']
+                        answer_end = answer_start + len(answer['text'])
+                        answers.append(answer['text'])
+                        answer_starts.append(answer_start)
+                        answer_ends.append(answer_end)
+
+                    # to avoid csv compatibility issue
+                    context = context.replace('\n', '\t')
+
+                    example = {'id': id_,
+                               'idx': len(examples),
+                               'context': context,
+                               'question': question,
+                               'answers': answers,
+                               'answer_starts': answer_starts,
+                               'answer_ends': answer_ends}
+                    examples.append(example)
+                    if draft and len(examples) == 100:
+                        return examples
+        return examples
 
 
 def tokenize(in_):
@@ -41,8 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--lower', default=False, action='store_true')
     args = parser.parse_args()
 
-    with open(args.data_path, 'r') as fp:
-        examples = list(csv.DictReader(fp))
+    examples = load_squad(args.data_path, draft=args.draft)
 
     out_dict = {}
     for example in tqdm(examples):
