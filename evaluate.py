@@ -1,5 +1,5 @@
 
-""" Official evaluation script for PIQA (compatible with and copied from v1.1 of the SQuAD dataset)."""
+""" Identical to SQuAD v1.1 evaluation script"""
 from __future__ import print_function
 from collections import Counter
 import string
