@@ -7,17 +7,19 @@ from collections import Counter
 
 import nltk
 import torch
+from scipy.sparse import csc_matrix
 from torch.utils.data import Sampler
 import numpy as np
 
 
-def load_glove(size, glove_dir=None, draft=False):
+def load_glove(size, vocab_size=400000, glove_dir=None, draft=False):
     if glove_dir is None:
         glove_url = 'http://nlp.stanford.edu/data/glove.6B.zip -O $GLOVE_DIR/glove.6B.zip'
+        raise NotImplementedError()
 
     glove_path = os.path.join(glove_dir, 'glove.6B.%dd.txt' % size)
     with open(glove_path, 'r') as fp:
-        emb_mat = np.zeros([100 if draft else 400000, size], dtype=np.float32)
+        emb_mat = np.zeros([100 if draft else vocab_size, size], dtype=np.float32)
         vocab = []
         for idx, line in enumerate(fp):
             # line = line.decode('utf-8')
@@ -36,29 +38,41 @@ def load_squad(squad_path, draft=False):
         squad = json.load(fp)
         examples = []
         for article in squad['data']:
-            for paragraph in article['paragraphs']:
-                context = paragraph['context']
-                for qa in paragraph['qas']:
-                    question = qa['question']
-                    id_ = qa['id']
-                    answers, answer_starts, answer_ends = [], [], []
-                    for answer in qa['answers']:
-                        answer_start = answer['answer_start']
-                        answer_end = answer_start + len(answer['text'])
-                        answers.append(answer['text'])
-                        answer_starts.append(answer_start)
-                        answer_ends.append(answer_end)
+            for para_idx, paragraph in enumerate(article['paragraphs']):
+                cid = '%s_%d' % (article['title'], para_idx)
+                if 'context' in paragraph:
+                    context = paragraph['context']
+                    context_example = {'cid': cid, 'context': context}
+                else:
+                    context_example = {}
 
-                    # to avoid csv compatibility issue
-                    context = context.replace('\n', '\t')
+                if 'qas' in paragraph:
+                    for question_idx, qa in enumerate(paragraph['qas']):
+                        id_ = qa['id']
+                        qid = '%s_%d' % (cid, question_idx)
+                        question = qa['question']
+                        question_example = {'id': id_, 'qid': qid, 'question': question}
+                        if 'answers' in qa:
+                            answers, answer_starts, answer_ends = [], [], []
+                            for answer in qa['answers']:
+                                answer_start = answer['answer_start']
+                                answer_end = answer_start + len(answer['text'])
+                                answers.append(answer['text'])
+                                answer_starts.append(answer_start)
+                                answer_ends.append(answer_end)
+                            answer_example = {'answers': answers, 'answer_starts': answer_starts,
+                                              'answer_ends': answer_ends}
+                            question_example.update(answer_example)
 
-                    example = {'id': id_,
-                               'idx': len(examples),
-                               'context': context,
-                               'question': question,
-                               'answers': answers,
-                               'answer_starts': answer_starts,
-                               'answer_ends': answer_ends}
+                        example = {'idx': len(examples)}
+                        example.update(context_example)
+                        example.update(question_example)
+                        examples.append(example)
+                        if draft and len(examples) == 100:
+                            return examples
+                else:
+                    example = {'idx': len(examples)}
+                    example.update(context_example)
                     examples.append(example)
                     if draft and len(examples) == 100:
                         return examples
@@ -126,12 +140,13 @@ class SquadProcessor(object):
     def construct(self, examples, ext_vocab):
         word_counter, lower_word_counter, char_counter = Counter(), Counter(), Counter()
         for example in examples:
-            for span in self.word_tokenize(example['context']):
-                word = example['context'][span[0]:span[1]]
-                word_counter[word] += 1
-                lower_word_counter[word] += 1
-                for char in word:
-                    char_counter[char] += 1
+            for text in (example['context'], example['question']):
+                for span in self.word_tokenize(example['context']):
+                    word = text[span[0]:span[1]]
+                    word_counter[word] += 1
+                    lower_word_counter[word] += 1
+                    for char in word:
+                        char_counter[char] += 1
 
         word_vocab = tuple(item[0] for item in sorted(word_counter.items(), key=lambda item: -item[1]))
         word_vocab = (SquadProcessor.pad, SquadProcessor.unk) + word_vocab
@@ -144,8 +159,10 @@ class SquadProcessor(object):
         self._char2idx = {char: idx for idx, char in enumerate(char_vocab)}
 
         ext_vocab = (SquadProcessor.pad, SquadProcessor.unk) + tuple(ext_vocab)
+        if len(ext_vocab) > self._glove_vocab_size:
+            ext_vocab = ext_vocab[:self._glove_vocab_size]
         self._word2idx_ext = {ext: idx for idx, ext in enumerate(ext_vocab)}
-        assert max(self._word2idx_ext.values()) + 1 == self._glove_vocab_size, max(self._word2idx_ext.values()) + 1
+        # assert max(self._word2idx_ext.values()) + 1 == self._glove_vocab_size, max(self._word2idx_ext.values()) + 1
 
     def state_dict(self):
         out = {'word2idx': self._word2idx,
@@ -183,31 +200,31 @@ class SquadProcessor(object):
         return self._char2idx[char] if char in self._char2idx else 1
 
     def preprocess(self, example):
-        context = example['context']
-        context_spans = self.word_tokenize(context)
-        context_words = tuple(context[span[0]:span[1]] for span in context_spans)
-        context_word_idxs = tuple(map(self.word2idx, context_words))
-        context_glove_idxs = tuple(map(self.word2idx_ext, context_words))
-        context_char_idxs = tuple(tuple(map(self.char2idx, word)) for word in context_words)
+        prepro_example = {'idx': example['idx']}
 
-        question = example['question']
-        question_spans = self.word_tokenize(example['question'])
-        question_words = tuple(question[span[0]:span[1]] for span in question_spans)
-        question_word_idxs = tuple(map(self.word2idx, question_words))
-        question_glove_idxs = tuple(map(self.word2idx_ext, question_words))
-        question_char_idxs = tuple(tuple(map(self.char2idx, word)) for word in question_words)
+        if 'context' in example:
+            context = example['context']
+            context_spans = self.word_tokenize(context)
+            context_words = tuple(context[span[0]:span[1]] for span in context_spans)
+            context_word_idxs = tuple(map(self.word2idx, context_words))
+            context_glove_idxs = tuple(map(self.word2idx_ext, context_words))
+            context_char_idxs = tuple(tuple(map(self.char2idx, word)) for word in context_words)
+            prepro_example['context_spans'] = context_spans
+            prepro_example['context_word_idxs'] = context_word_idxs
+            prepro_example['context_glove_idxs'] = context_glove_idxs
+            prepro_example['context_char_idxs'] = context_char_idxs
 
-        prepro_example = {'context_spans': context_spans,
-                          'context_word_idxs': context_word_idxs,
-                          'context_glove_idxs': context_glove_idxs,
-                          'context_char_idxs': context_char_idxs,
-                          'context_word2sent': None,
-                          'context_sent2word': None,
-                          'question_spans': question_spans,
-                          'question_word_idxs': question_word_idxs,
-                          'question_glove_idxs': question_glove_idxs,
-                          'question_char_idxs': question_char_idxs,
-                          'idx': example['idx']}
+        if 'question' in example:
+            question = example['question']
+            question_spans = self.word_tokenize(example['question'])
+            question_words = tuple(question[span[0]:span[1]] for span in question_spans)
+            question_word_idxs = tuple(map(self.word2idx, question_words))
+            question_glove_idxs = tuple(map(self.word2idx_ext, question_words))
+            question_char_idxs = tuple(tuple(map(self.char2idx, word)) for word in question_words)
+            prepro_example['question_spans'] = question_spans
+            prepro_example['question_word_idxs'] = question_word_idxs
+            prepro_example['question_glove_idxs'] = question_glove_idxs
+            prepro_example['question_char_idxs'] = question_char_idxs
 
         if 'answer_starts' in example:
             answer_word_start, answer_word_end = 0, 0
@@ -229,9 +246,8 @@ class SquadProcessor(object):
         return output
 
     def postprocess(self, example, model_output):
-        _, _, yp1, yp2 = model_output
-        yp1 = yp1.item()
-        yp2 = yp2.item()
+        yp1 = model_output['yp1'].item()
+        yp2 = model_output['yp2'].item()
         context = example['context']
         context_spans = example['context_spans']
         pred = _get_pred(context, context_spans, yp1, yp2)
@@ -249,31 +265,43 @@ class SquadProcessor(object):
 
     def postprocess_batch(self, dataset, model_input, model_output):
         results = tuple(self.postprocess(dataset[idx],
-                                         [val[i] for val in model_output])
+                                         {key: val[i] if val is not None else None for key, val in
+                                          model_output.items()})
                         for i, idx in enumerate(model_input['idx']))
         return results
 
-    def postprocess_context(self, example, context_output):
-        pos_tuple, tensor = context_output
+    def postprocess_context(self, example, context_output, emb_type='dense'):
+        pos_tuple, dense = context_output
+        out = dense.cpu().numpy()
         context = example['context']
         context_spans = example['context_spans']
         phrases = tuple(_get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
-        matrix = tensor.cpu().numpy()
-        return phrases, matrix
+        if emb_type == 'sparse':
+            out = csc_matrix(out)
+        return example['cid'], phrases, out
 
-    def postprocess_context_batch(self, dataset, model_input, context_output):
-        results = tuple(self.postprocess_context(dataset[idx], context_output[i])
+    def postprocess_context_batch(self, dataset, model_input, context_output, emb_type='dense'):
+        results = tuple(self.postprocess_context(dataset[idx], context_output[i], emb_type=emb_type)
                         for i, idx in enumerate(model_input['idx']))
         return results
 
-    def postprocess_question_batch(self, dataset, model_input, question_output):
-        results = tuple((dataset[idx]['id'], question_output[i].cpu().numpy())
+    def postprocess_question(self, example, question_output, emb_type='dense'):
+        dense = question_output
+        out = dense.cpu().numpy()
+        if emb_type == 'sparse':
+            out = csc_matrix(out)
+        return example['id'], out
+
+    def postprocess_question_batch(self, dataset, model_input, question_output, emb_type='dense'):
+        results = tuple(self.postprocess_question(dataset[idx], question_output[i], emb_type=emb_type)
                         for i, idx in enumerate(model_input['idx']))
         return results
 
     def collate(self, examples):
         tensors = {}
         for key in self.keys:
+            if key not in examples[0]:
+                continue
             val = tuple(example[key] for example in examples)
             depth = self.depths[key] + 1
             shape = _get_shape(val, depth)
@@ -293,7 +321,7 @@ class SquadProcessor(object):
 
 
 class SquadSampler(Sampler):
-    def __init__(self, dataset, max_context_size=None, max_question_size=None, bucket=False):
+    def __init__(self, dataset, max_context_size=None, max_question_size=None, bucket=False, shuffle=False):
         super(SquadSampler, self).__init__(dataset)
         self.max_context_size = max_context_size
         self.max_question_size = max_question_size
@@ -302,9 +330,16 @@ class SquadSampler(Sampler):
         idxs = tuple(idx for idx in range(len(dataset))
                      if (max_context_size is None or len(dataset[idx]['context_spans']) <= self.max_context_size) and
                      (max_question_size is None or len(dataset[idx]['question_spans']) <= self.max_question_size))
-        idxs = random.sample(idxs, len(idxs))
+
+        if shuffle:
+            idxs = random.sample(idxs, len(idxs))
+
         if bucket:
-            idxs = sorted(idxs, key=lambda idx: len(dataset[idx]['context_spans']))
+            if 'context_spans' in dataset[0]:
+                idxs = sorted(idxs, key=lambda idx: len(dataset[idx]['context_spans']))
+            else:
+                assert 'question_spans' in dataset[0]
+                idxs = sorted(idxs, key=lambda idx: len(dataset[idx]['question_spans']))
         self._idxs = idxs
 
     def __iter__(self):
@@ -312,6 +347,20 @@ class SquadSampler(Sampler):
 
     def __len__(self):
         return len(self._idxs)
+
+
+class SparseTensor(object):
+    def __init__(self, idx, val, max_=None):
+        self.idx = idx
+        self.val = val
+        self.max = max_
+
+    def scipy(self):
+        col = self.idx.flatten()
+        row = np.tile(np.expand_dims(range(self.idx.shape[0]), 1), [1, self.idx.shape[1]]).flatten()
+        data = self.val.flatten()
+        shape = None if self.max is None else [self.idx.shape[0], self.max]
+        return csc_matrix((data, (row, col)), shape=shape)
 
 
 # SquadProcessor-specific helpers

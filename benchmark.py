@@ -19,5 +19,6 @@ if __name__ == '__main__':
         ans = np.argmax(np.matmul(doc, np.expand_dims(query, -1)), 0)
     duration = time.time() - start_time
     speed = args.num_vecs * args.num_iters / duration
-    print('numpy: %.3f ms per %d vecs of %dD, or %d vecs/s' % (
-    duration * 1000 / args.num_iters, args.num_vecs, args.dim, speed))
+    print('numpy: %.3f ms per %d vecs of %dD, or %d vecs/s' % (duration * 1000 / args.num_iters, args.num_vecs, args.dim, speed))
+
+

@@ -56,20 +56,18 @@ class Highway(nn.Module):
 
 class Embedding(nn.Module):
     def __init__(self, char_vocab_size, glove_vocab_size, word_vocab_size, embed_dim, dropout,
-                 elmo=False, elmo_options_file=None, elmo_weight_file=None):
+                 elmo=False, elmo_options_file=None, elmo_weights_file=None):
         super(Embedding, self).__init__()
+        self.word_embedding = WordEmbedding(word_vocab_size, embed_dim)
         self.char_embedding = CharEmbedding(char_vocab_size, embed_dim)
         self.glove_embedding = WordEmbedding(glove_vocab_size, embed_dim, requires_grad=False)
         self.output_size = 2 * embed_dim
         self.highway1 = Highway(self.output_size, dropout)
         self.highway2 = Highway(self.output_size, dropout)
         if elmo:
-            if elmo_options_file is None:
-                elmo_options_file = 'https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json'
-            if elmo_weight_file is None:
-                elmo_weight_file = 'https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5'
+            assert elmo_options_file is not None and elmo_weights_file is not None
             from allennlp.modules.elmo import Elmo
-            self.elmo = Elmo(elmo_options_file, elmo_weight_file, 2, dropout=0)
+            self.elmo = Elmo(elmo_options_file, elmo_weights_file, 2, dropout=0)
             self.elmo_scale = nn.Parameter(torch.rand(1))
             self.weight = nn.Parameter(torch.rand(2))
             self.softmax = nn.Softmax(dim=0)
@@ -80,6 +78,7 @@ class Embedding(nn.Module):
 
     def load_glove(self, glove_emb_mat):
         device = self.glove_embedding.embedding.weight.device
+        glove_emb_mat = glove_emb_mat.to(device)
         glove_emb_mat = torch.cat([torch.zeros(2, glove_emb_mat.size()[-1]).to(device), glove_emb_mat], dim=0)
         self.glove_embedding.embedding.weight = torch.nn.Parameter(glove_emb_mat, requires_grad=False)
 
@@ -93,21 +92,6 @@ class Embedding(nn.Module):
             weight = self.softmax(self.weight)
             elmo = self.sigmoid(self.elmo_scale) * (l1 * weight[0] + l2 * weight[1])
             output = torch.cat([output, elmo], 2)
-        return output
-
-
-class SelfAtt(nn.Module):
-    def __init__(self, input_size, dropout):
-        super(SelfAtt, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-        self.linear = nn.Linear(input_size, 1)
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, input_, mask):
-        input_ = self.dropout(input_)
-        att = self.linear(input_) + mask.unsqueeze(-1)
-        att = self.softmax(att)
-        output = (input_ * att).sum(1)
         return output
 
 
@@ -127,74 +111,63 @@ class SelfSeqAtt(nn.Module):
 
     def forward(self, input_, mask):
         input_ = self.dropout(input_)
-        query, _ = self.key_lstm(input_)
-        key, _ = self.key_lstm(input_)
+        key_input = input_
+        query_input = input_
+        key, _ = self.key_lstm(key_input)
+        query, _ = self.key_lstm(query_input)
         att = query.matmul(key.transpose(1, 2)) + mask.unsqueeze(1)
         att = self.softmax(att)
         output = att.matmul(input_)
-        return output
+        return {'value': output, 'key': key, 'query': query}
 
 
 class ContextBoundary(nn.Module):
-    def __init__(self, embedding, hidden_size, dropout, num_heads):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, identity=True, num_layers=1):
         super(ContextBoundary, self).__init__()
-        self.embedding = embedding
+        assert num_heads >= 1, num_heads
         self.dropout = torch.nn.Dropout(p=dropout)
-        self.lstm = torch.nn.LSTM(input_size=self.embedding.output_size,
-                                  hidden_size=hidden_size,
-                                  batch_first=True,
-                                  bidirectional=True)
+        self.num_layers = num_layers
+        for i in range(self.num_layers):
+            self.add_module('lstm%d' % i, torch.nn.LSTM(input_size=input_size,
+                                                        hidden_size=hidden_size,
+                                                        batch_first=True,
+                                                        bidirectional=True))
         self.num_heads = num_heads
-        if num_heads > 1:
-            for i in range(1, num_heads):
-                self.add_module('self_att%d' % i, SelfSeqAtt(hidden_size * 2, hidden_size, dropout))
+        self.identity = identity
+        self.att_num_heads = num_heads - 1 if identity else num_heads
+        for i in range(self.att_num_heads):
+            self.add_module('self_att%d' % i,
+                            SelfSeqAtt(hidden_size * 2, hidden_size, dropout))
 
-    def forward(self, cx, gx, x, context_elmo_idxs=None):
-        m = ((x == 0).float() * -1e9)
-        x = self.embedding(cx, gx, x, ex=context_elmo_idxs)
-        x = self.dropout(x)
-        x, _ = self.lstm(x)
-        if self.num_heads > 1:
-            atts = []
-            modules = dict(self.named_children())
-            for i in range(1, self.num_heads):
-                a = modules['self_att%d' % i](x, m)
-                atts.append(a)
-
-            x = torch.cat([x] + atts, 2)
-        return x
-
-
-class QuestionBoundary(nn.Module):
-    def __init__(self, embedding, hidden_size, dropout, num_heads):
-        super(QuestionBoundary, self).__init__()
-        self.embedding = embedding
-        self.dropout = torch.nn.Dropout(p=dropout)
-        self.lstm = torch.nn.LSTM(input_size=self.embedding.output_size,
-                                  hidden_size=hidden_size,
-                                  batch_first=True,
-                                  bidirectional=True)
-        self.weight = nn.Linear(hidden_size * 2, 1)
-        self.softmax = nn.Softmax(dim=1)
-        self.num_heads = num_heads
-        for i in range(num_heads):
-            self.add_module('att%d' % i, SelfAtt(hidden_size * 2, dropout))
-
-    def forward(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None):
-        m = ((question_word_idxs == 0).float() * -1e9)
-        q = self.embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
-        q = self.dropout(q)
-        q, _ = self.lstm(q)
-        atts = []
+    def forward(self, x, m):
         modules = dict(self.named_children())
-        for i in range(self.num_heads):
-            a = modules['att%d' % i](q, m)
-            atts.append(a)
-        out = torch.cat(atts, 1)
-        return out
+        x = self.dropout(x)
+        for i in range(self.num_layers):
+            x, _ = modules['lstm%d' % i](x)
+        atts = [x] if self.identity else []
+        for i in range(self.att_num_heads):
+            a = modules['self_att%d' % i](x, m)
+            atts.append(a['value'])
+
+        dense = torch.cat(atts, 2)
+        return {'dense': dense}
 
 
-class PIQA(nn.Module):
+class QuestionBoundary(ContextBoundary):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, max_pool=False):
+        super(QuestionBoundary, self).__init__(input_size, hidden_size, dropout, num_heads, identity=False)
+        self.max_pool = max_pool
+
+    def forward(self, x, m):
+        d = super().forward(x, m)
+        if self.max_pool:
+            dense = d['dense'].max(1)[0]
+        else:
+            dense = d['dense'][:, 0, :]
+        return {'dense': dense}
+
+
+class Baseline(nn.Module):
     def __init__(self,
                  char_vocab_size,
                  glove_vocab_size,
@@ -206,16 +179,27 @@ class PIQA(nn.Module):
                  max_ans_len=7,
                  elmo=False,
                  elmo_options_file=None,
-                 elmo_weight_file=None):
-        super(PIQA, self).__init__()
+                 elmo_weights_file=None,
+                 max_pool=False,
+                 agg='max',
+                 num_layers=1,
+                 **kwargs):
+        super(Baseline, self).__init__()
         self.embedding = Embedding(char_vocab_size, glove_vocab_size, word_vocab_size, embed_size, dropout,
-                                   elmo=elmo, elmo_options_file=elmo_options_file, elmo_weight_file=elmo_weight_file)
-        self.context_start = ContextBoundary(self.embedding, hidden_size, dropout, num_heads)
-        self.question_start = QuestionBoundary(self.embedding, hidden_size, dropout, num_heads)
-        self.context_end = ContextBoundary(self.embedding, hidden_size, dropout, num_heads)
-        self.question_end = QuestionBoundary(self.embedding, hidden_size, dropout, num_heads)
+                                   elmo=elmo, elmo_options_file=elmo_options_file, elmo_weights_file=elmo_weights_file)
+        self.context_embedding = self.embedding
+        self.question_embedding = self.embedding
+        word_size = self.embedding.output_size
+        context_input_size = word_size
+        question_input_size = word_size
+        self.context_start = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers)
+        self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers)
+        self.agg = agg
+        self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool)
+        self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool)
         self.softmax = nn.Softmax(dim=1)
         self.max_ans_len = max_ans_len
+        self.linear = nn.Linear(word_size, 1)
 
     def forward(self,
                 context_char_idxs,
@@ -226,63 +210,80 @@ class PIQA(nn.Module):
                 question_word_idxs,
                 context_elmo_idxs=None,
                 question_elmo_idxs=None,
+                num_samples=None,
                 **kwargs):
-        cx = context_char_idxs
-        gx = context_glove_idxs
-        x = context_word_idxs
-        cq = question_char_idxs
-        gq = question_glove_idxs
-        q = question_word_idxs
-        m = (x == 0).float() * -1e9
-        x1 = self.context_start(cx, gx, x, context_elmo_idxs=context_elmo_idxs)
-        q1 = self.question_start(cq, gq, q, question_elmo_idxs=question_elmo_idxs)
-        x2 = self.context_end(cx, gx, x, context_elmo_idxs=context_elmo_idxs)
-        q2 = self.question_end(cq, gq, q, question_elmo_idxs=question_elmo_idxs)
+        q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
+        x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
 
-        q1 = q1.view(q1.size()[0], 1, q1.size()[-1])
-        q2 = q2.view(q2.size()[0], 1, q2.size()[-1])
+        mq = ((question_glove_idxs == 0).float() * -1e9)
+        qd1 = self.question_start(q, mq)
+        qd2 = self.question_end(q, mq)
+        q1 = qd1['dense']
+        q2 = qd2['dense']
+        # print(qs1[0, question_word_idxs[0] > 0])
 
-        logits1 = torch.sum(x1 * q1, 2) + m
-        logits2 = torch.sum(x2 * q2, 2) + m
+        mx = (context_glove_idxs == 0).float() * -1e9
+
+        hd1 = self.context_start(x, mx)
+        hd2 = self.context_end(x, mx)
+        x1 = hd1['dense']
+        x2 = hd2['dense']
+
+        logits1 = torch.sum(x1 * q1.unsqueeze(1), 2) + mx
+        logits2 = torch.sum(x2 * q2.unsqueeze(1), 2) + mx
+
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
         prob = prob1.unsqueeze(2) * prob2.unsqueeze(1)
-        mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(prob.device)
+        mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
+            prob.device)
         prob *= mask
         _, yp1 = prob.max(2)[0].max(1)
         _, yp2 = prob.max(1)[0].max(1)
-        return logits1, logits2, yp1, yp2
+
+        return {'logits1': logits1,
+                'logits2': logits2,
+                'yp1': yp1,
+                'yp2': yp2,
+                'x1': x1,
+                'x2': x2,
+                'q1': q1,
+                'q2': q2}
 
     def load_glove(self, glove_emb_mat):
         self.embedding.load_glove(glove_emb_mat)
 
-    def context(self, context_char_idxs, context_glove_idxs, context_word_idxs, **kwargs):
-        cx = context_char_idxs
-        gx = context_glove_idxs
-        x = context_word_idxs
-        l = (x > 0).sum(1)
-        x1 = self.context_start(cx, gx, x)
-        x2 = self.context_end(cx, gx, x)
+    def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
+        l = (context_glove_idxs > 0).sum(1)
+        mx = (context_glove_idxs == 0).float() * -1e9
+        x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
+        xd1 = self.context_start(x, mx)
+        x1 = xd1['dense']
+        xd2 = self.context_end(x, mx)
+        x2 = xd2['dense']
         out = []
-        for lb, x1b, x2b in zip(l, x1, x2):
+        for k, (lb, x1b, x2b) in enumerate(zip(l, x1, x2)):
             pos_list = []
             vec_list = []
             for i in range(lb):
-                for j in range(i, min(i+self.max_ans_len, lb)):
+                for j in range(i, min(i + self.max_ans_len, lb)):
                     vec = torch.cat([x1b[i], x2b[j]], 0)
                     pos_list.append((i, j))
                     vec_list.append(vec)
-            vec_cat = torch.stack(vec_list, 0)
-            out.append((tuple(pos_list), vec_cat))
+
+            dense = torch.stack(vec_list, 0)
+            out.append((tuple(pos_list), dense))
         return tuple(out)
 
-    def question(self, question_char_idxs, question_glove_idxs, question_word_idxs, **kwargs):
-        cq = question_char_idxs
-        gq = question_glove_idxs
-        q = question_word_idxs
-        q1 = self.question_start(cq, gq, q)
-        q2 = self.question_end(cq, gq, q)
-        out = torch.cat([q1, q2], 1)
+    def get_question(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None,
+                     **kwargs):
+        mq = ((question_glove_idxs == 0).float() * -1e9)
+        q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
+        qd1 = self.question_start(q, mq)
+        q1 = qd1['dense']
+        qd2 = self.question_end(q, mq)
+        q2 = qd2['dense']
+        out = list(torch.cat([q1, q2], 1))
         return out
 
 
@@ -292,7 +293,9 @@ class Loss(nn.Module):
         self.cel = nn.CrossEntropyLoss()
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, **kwargs):
-        loss1 = self.cel(logits1, answer_word_starts[:, 0] - 1)
-        loss2 = self.cel(logits2, answer_word_ends[:, 0] - 1)
+        answer_word_starts -= 1
+        answer_word_ends -= 1
+        loss1 = self.cel(logits1, answer_word_starts[:, 0])
+        loss2 = self.cel(logits2, answer_word_ends[:, 0])
         loss = loss1 + loss2
         return loss

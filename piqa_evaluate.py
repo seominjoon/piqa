@@ -1,6 +1,7 @@
-
-""" Official evaluation script for PIQA (compatible with and copied from v1.1 of the SQuAD dataset)."""
+""" Official v1.1 evaluation script for PIQA (inherited from SQuAD v1.1 evaluation script)."""
 from __future__ import print_function
+
+import os
 from collections import Counter
 import string
 import re
@@ -8,9 +9,13 @@ import argparse
 import json
 import sys
 
+import scipy.sparse
+import numpy as np
+
 
 def normalize_answer(s):
     """Lower text and remove punctuation, articles and extra whitespace."""
+
     def remove_articles(text):
         return re.sub(r'\b(a|an|the)\b', ' ', text)
 
@@ -76,12 +81,63 @@ def evaluate(dataset, predictions):
     return {'exact_match': exact_match, 'f1': f1}
 
 
+def get_q2c(dataset):
+    q2c = {}
+    for article in dataset:
+        for para_idx, paragraph in enumerate(article['paragraphs']):
+            cid = '%s_%d' % (article['title'], para_idx)
+            for qa in paragraph['qas']:
+                q2c[qa['id']] = cid
+    return q2c
+
+
+def get_predictions(context_emb_dir, question_emb_dir, q2c, sparse=False, progress=False):
+    if progress:
+        from tqdm import tqdm
+    else:
+        tqdm = lambda x: x
+    predictions = {}
+    for id_, cid in tqdm(q2c.items()):
+        q_emb_path = os.path.join(question_emb_dir, '%s.npz' % id_)
+        c_emb_path = os.path.join(context_emb_dir, '%s.npz' % cid)
+        c_json_path = os.path.join(context_emb_dir, '%s.json' % cid)
+
+        if not os.path.exists(q_emb_path):
+            continue
+
+        load = scipy.sparse.load_npz if sparse else np.load
+        q_emb = load(q_emb_path)  # shape = [M, d], d is the embedding size.
+        c_emb = load(c_emb_path)  # shape = [N, d], d is the embedding size.
+
+        with open(c_json_path, 'r') as fp:
+            phrases = json.load(fp)
+
+        if sparse:
+            sim = c_emb * q_emb.T
+            m = sim.max(1)
+            m = np.squeeze(np.array(m.todense()), 1)
+        else:
+            q_emb = q_emb['arr_0']
+            c_emb = c_emb['arr_0']
+            sim = np.matmul(c_emb, q_emb.T)
+            m = sim.max(1)
+
+        argmax = m.argmax(0)
+        predictions[id_] = phrases[argmax]
+
+    return predictions
+
+
 if __name__ == '__main__':
     expected_version = '1.1'
     parser = argparse.ArgumentParser(
         description='Evaluation for SQuAD ' + expected_version)
     parser.add_argument('dataset_file', help='Dataset file')
-    parser.add_argument('prediction_file', help='Prediction File')
+    parser.add_argument('context_emb_dir', help='Context embedding directory')
+    parser.add_argument('question_emb_dir', help='Question embedding directory')
+    parser.add_argument('--sparse', default=False, action='store_true',
+                        help='Whether the embeddings are scipy.sparse or pure numpy.')
+    parser.add_argument('--progress', default=False, action='store_true', help='Show progress bar. Requires `tqdm`.')
     args = parser.parse_args()
     with open(args.dataset_file) as dataset_file:
         dataset_json = json.load(dataset_file)
@@ -90,6 +146,7 @@ if __name__ == '__main__':
                   ', but got dataset with v-' + dataset_json['version'],
                   file=sys.stderr)
         dataset = dataset_json['data']
-    with open(args.prediction_file) as prediction_file:
-        predictions = json.load(prediction_file)
+    q2c = get_q2c(dataset)
+    predictions = get_predictions(args.context_emb_dir, args.question_emb_dir, q2c, sparse=args.sparse,
+                                  progress=args.progress)
     print(json.dumps(evaluate(dataset, predictions)))

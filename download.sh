@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Install requirements
-pip install nltk numpy torch==0.4.1 h5py
+# Install requirements; assuming Python 3.6
+pip install nltk==3.3 numpy==1.15.2 scipy==1.1.0 torch==0.4.1 allennlp==0.6.0 tqdm gensim
 
-# If you want to use elmo, install allennlp
-pip install allennlp
-
-# DATA_DIR=/static/  # For docker
-DATA_DIR=$HOME/data/  # For local
+DATA_DIR=$HOME/data/
 mkdir $DATA_DIR
 
 # Download GloVe
