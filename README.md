@@ -29,6 +29,12 @@ Make sure you have Python 3.6. Download and install all requirements by:
 chmod +x download.sh; ./download.sh
 ```
 
+This will install following python packages:
+
+- `numpy==1.15.2`, `scipy==1.1.0`, `torch==0.4.1`, `nltk==3.3`: Essential packages
+- `allenlp==0.6.0`: only if you want to try using [ELMo][elmo]; the installation takes some time.
+- `tqdm`, `gensim`: optional.
+
 Download SQuAD v1.1 train and dev set at `$SQUAD_TRAIN_PATH` and `$SQUAD_DEV_PATH`, respectively. Also, for official evaluation, download [`$SQUAD_DEV_CONTEXT_PATH`][squad-context] and [`$SQUAD_DEV_QUESTION_PATH`][squad-question]. Note that a simple script `split.py` is used to obtain both files from the original dev dataset.
 
 
@@ -127,5 +133,6 @@ We are coordinating with CodaLab and SQuAD folks to incorporate PIQA evaluation 
 [paper]: https://arxiv.org/abs/1804.07726
 [minjoon]: https://seominjoon.github.io
 [minjoon-github]: https://github.com/seominjoon
-[squad-context]: http://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json
-[squad-question]: http://nlp.cs.washington.edu/piqa/squad/dev-v1.1-question.json
+[squad-context]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json
+[squad-question]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-question.json
+[elmo]: https://allennlp.org/elmo
