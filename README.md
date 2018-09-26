@@ -4,7 +4,7 @@
 - Much of the work and code are heavily influenced by our former unofficial [repository][mipsqa]. 
 - Please create a new issue on this repository or contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]) for questions and suggestions.
 
-Please cite by:
+For citation, please use:
 
 ```
 @inproceedings{seo2018phrase,
