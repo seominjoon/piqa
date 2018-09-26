@@ -35,7 +35,7 @@ Note that it is also not so straightforward to strictly enforce the constraint o
 ## Baseline Models
 
 ### 0. Download requirements
-Make sure you have Python 3.6. Download and install all requirements by:
+Make sure you have Python 3.6 or later. Download and install all requirements by:
 
 ```bash
 chmod +x download.sh; ./download.sh
