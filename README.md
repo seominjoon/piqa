@@ -1,7 +1,19 @@
 # Phrase-Indexed Question Answering (PIQA)
 - This is the official github repository for [Phrase-Indexed Question Answering: A New Challenge for Scalable Document Comprehension][paper] (EMNLP 2018).
 - Webpage with leaderboard and submission guideline are coming soon. For now, please consider reproducing the baseline models and running the official evaluation routine (below) to become familiar with the challenge format.
+- Much of the work and code are heavily influenced by our former, semi-concealed [repository][mipsqa]. 
 - Please create a new issue on this repository or contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]) for questions and suggestions.
+
+Please cite by:
+
+```
+@inproceedings{seo2018phrase,
+  title={Phrase-Indexed Question Answering: A New Challenge for Scalable Document Comprehension},
+  author={Seo, Minjoon and Kwiatkowski, Tom and Parikh, Ankur P and Farhadi, Ali and Hajishirzi, Hannaneh},
+  booktitle={EMNLP},
+  year={2018}
+}
+```
 
 ## Introduction
 We will assume that you have read the [paper][paper], though we will try to recap it here. PIQA challenge is about approaching (existing) extractive question answering tasks via phrase retrieval mechanism (we plan to hold the challenge for several extractive QA datasets in near future, though we currently only support PIQA for SQuAD 1.1.). This means we need:
@@ -136,3 +148,4 @@ We are coordinating with CodaLab and SQuAD folks to incorporate PIQA evaluation 
 [squad-context]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json
 [squad-question]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-question.json
 [elmo]: https://allennlp.org/elmo
+[mipsqa]: https://github.com/google/mipsqa
