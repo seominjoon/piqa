@@ -85,7 +85,7 @@ Where the iteration indicates the step at which the model of interest is saved. 
 This will output the prediction file at `/tmp/piqa/pred.json`. Now, let's see what the official evalutor thinks about it:
 
 ```bash
-python evaluate-v1.1.json $SQUAD_DEV_PATH /tmp/piqa/pred.json
+python evaluate.json $SQUAD_DEV_PATH /tmp/piqa/pred.json
 ```
 
 That was easy! But why do we have *official evaluation* section below? Because we had a big assumption in the beginning, that you trust us that our encoders are independent. But who knows?
