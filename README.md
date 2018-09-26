@@ -145,7 +145,7 @@ We are coordinating with CodaLab and SQuAD folks to incorporate PIQA evaluation 
 [paper]: https://arxiv.org/abs/1804.07726
 [minjoon]: https://seominjoon.github.io
 [minjoon-github]: https://github.com/seominjoon
-[squad-context]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json
-[squad-question]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-question.json
+[squad-context]: http://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json
+[squad-question]: http://nlp.cs.washington.edu/piqa/squad/dev-v1.1-question.json
 [elmo]: https://allennlp.org/elmo
 [mipsqa]: https://github.com/google/mipsqa
