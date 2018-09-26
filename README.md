@@ -88,7 +88,7 @@ This will output the prediction file at `/tmp/piqa/pred.json`. Now, let's see wh
 python evaluate.json $SQUAD_DEV_PATH /tmp/piqa/pred.json
 ```
 
-That was easy! But why do we have *official evaluation* section below? Because we had a big assumption in the beginning, that you trust us that our encoders are independent. But who knows?
+That was easy! But why is this not an *official* evaluation? Because we had a big assumption in the beginning, that you trust us that our encoders are independent. But who knows?
 
 
 ### 3. Official Evaluation
