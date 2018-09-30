@@ -22,7 +22,7 @@ We will assume that you have read the [paper][paper], though we will try to reca
 2. **question encoder**: maps each question to the same vector space, and
 3. **retrieval**: retrieves the (phrasal) answer to the question by performing nearest neighbor search on the list. 
 
-While the challenge shares some similarities with document retrieval, a classic problem in information retrieval literature, a key difference is the the phrase representation will need to be *context-based*, which is more challenging than obtaining the embedding by its *content*.
+While the challenge shares some similarities with document retrieval, a classic problem in information retrieval literature, a key difference is that the phrase representation will need to be *context-based*, which is more challenging than obtaining the embedding by its *content*.
 
 An important aspect of the challenge is the constraint of *independence* between the **document encoder** and the **question encoder**. As we have noted in our paper, most existing models heavily rely on question-dependent representations of the context document. Nevertheless, phrase representations in PIQA need to be completely *independent* of the input question. Not only this makes the challenge quite difficult, but also state-of-the-art models cannot be directly used for the task. Hence we have proposed a few reasonable baseline models as the starting point, which can be found in this repository.
 
