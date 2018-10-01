@@ -67,11 +67,7 @@ class Embedding(nn.Module):
         if elmo:
             assert elmo_options_file is not None and elmo_weights_file is not None
             from allennlp.modules.elmo import Elmo
-            self.elmo = Elmo(elmo_options_file, elmo_weights_file, 2, dropout=0)
-            self.elmo_scale = nn.Parameter(torch.rand(1))
-            self.weight = nn.Parameter(torch.rand(2))
-            self.softmax = nn.Softmax(dim=0)
-            self.sigmoid = nn.Sigmoid()
+            self.elmo = Elmo(elmo_options_file, elmo_weights_file, 1, dropout=0)
             self.output_size += self.elmo.get_output_dim()
         else:
             self.elmo = None
@@ -88,9 +84,7 @@ class Embedding(nn.Module):
         output = torch.cat([cx, gx], -1)
         output = self.highway2(self.highway1(output))
         if self.elmo is not None:
-            l1, l2 = self.elmo(ex)['elmo_representations']
-            weight = self.softmax(self.weight)
-            elmo = self.sigmoid(self.elmo_scale) * (l1 * weight[0] + l2 * weight[1])
+            elmo, = self.elmo(ex)['elmo_representations']
             output = torch.cat([output, elmo], 2)
         return output
 

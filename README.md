@@ -4,7 +4,7 @@
 - Please create a new issue on this repository or contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]) for questions and suggestions.
 
 ## Introduction
-We will assume that you have read the [paper][paper], though we will try to recap it here. PIQA challenge is about approaching (existing) extractive question answering tasks via phrase retrieval mechanism (we plan to hold the challenge for several extractive QA datasets in near future, though we currently only support PIQA for SQuAD 1.1.). This means we need:
+We will assume that you have read the [paper][paper], though we will try to recap it here. PIQA challenge is about approaching (existing) extractive question answering tasks via phrase retrieval mechanism (we plan to hold the challenge for several extractive QA datasets in near future, though we currently only support PIQA for [SQuAD 1.1][squad].). This means we need:
 
 1. **document encoder**: enumerates a list of (phrase, vector) pairs from the document,
 2. **question encoder**: maps each question to the same vector space, and
@@ -35,7 +35,7 @@ This will install following python packages:
 - `allenlp==0.6.0`: only if you want to try using [ELMo][elmo]; the installation takes some time.
 - `tqdm`, `gensim`: optional.
 
-Download SQuAD v1.1 train and dev set at `$SQUAD_TRAIN_PATH` and `$SQUAD_DEV_PATH`, respectively. Also, for official evaluation, download [`$SQUAD_DEV_CONTEXT_PATH`][squad-context] and [`$SQUAD_DEV_QUESTION_PATH`][squad-question]. Note that a simple script `split.py` is used to obtain both files from the original dev dataset.
+Download SQuAD v1.1 train and dev set at [`$SQUAD_TRAIN_PATH`][squad-train] and [`$SQUAD_DEV_PATH`][squad-dev], respectively. Also, for official evaluation, download [`$SQUAD_DEV_CONTEXT_PATH`][squad-context] and [`$SQUAD_DEV_QUESTION_PATH`][squad-question]. Note that a simple script `split.py` is used to obtain both files from the original dev dataset.
 
 
 
@@ -70,10 +70,10 @@ python main.py --cuda --mode test --iteration XXXX --test_path $SQUAD_DEV_PATH
 ```
 
 Where the iteration indicates the step at which the model of interest is saved. Take a look at the standard output during training and pick the one that gives the best performance (which is automatically tracked).
-This will output the prediction file at `/tmp/piqa/pred.json`. Now, let's see what the official evalutor thinks about it:
+This will output the prediction file at `/tmp/piqa/pred.json`. Now, let's see what the vanilla SQuAD v1.1 evaluator (changed name from `evaluate-v1.1.py` to `evaluate.py`) thinks about it:
 
 ```bash
-python evaluate-v1.1.json $SQUAD_DEV_PATH /tmp/piqa/pred.json
+python evaluate.py $SQUAD_DEV_PATH /tmp/piqa/pred.json
 ```
 
 That was easy! But why do we have *official evaluation* section below? Because we had a big assumption in the beginning, that you trust us that our encoders are independent. But who knows?
@@ -133,6 +133,9 @@ We are coordinating with CodaLab and SQuAD folks to incorporate PIQA evaluation 
 [paper]: https://arxiv.org/abs/1804.07726
 [minjoon]: https://seominjoon.github.io
 [minjoon-github]: https://github.com/seominjoon
+[squad-train]: https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json
+[squad-dev]: https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json
 [squad-context]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json
 [squad-question]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-question.json
 [elmo]: https://allennlp.org/elmo
+[squad]: https://stanford-qa.com
