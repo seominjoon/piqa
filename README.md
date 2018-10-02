@@ -43,7 +43,7 @@ chmod +x download.sh; ./download.sh
 This will install following python packages:
 
 - `numpy==1.15.2`, `scipy==1.1.0`, `torch==0.4.1`, `nltk==3.3`: Essential packages
-- `allenlp==0.6.0`: only if you want to try using [ELMo][elmo]; the installation takes some time.
+- `allenlp==0.6.1`: only if you want to try using [ELMo][elmo]; the installation takes some time.
 - `tqdm`, `gensim`: optional.
 
 Download SQuAD v1.1 train and dev set at [`$SQUAD_TRAIN_PATH`][squad-train] and [`$SQUAD_DEV_PATH`][squad-dev], respectively. Also, for official evaluation, download [`$SQUAD_DEV_CONTEXT_PATH`][squad-context] and [`$SQUAD_DEV_QUESTION_PATH`][squad-question]. Note that a simple script `split.py` is used to obtain both files from the original dev dataset.

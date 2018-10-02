@@ -2,6 +2,6 @@ torch==0.4.1
 numpy==1.15.2
 scipy==1.1.0
 nltk==3.3
-allennlp==0.6.0
+allennlp==0.6.1
 tqdm
 gensim

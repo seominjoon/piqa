@@ -19,12 +19,13 @@ class CharEmbedding(nn.Module):
 
 
 class WordEmbedding(nn.Module):
-    def __init__(self, word_vocab_size, embed_dim, requires_grad=True):
+    def __init__(self, word_vocab_size, embed_dim, requires_grad=True, cpu=False):
         super(WordEmbedding, self).__init__()
         self.word_vocab_size = word_vocab_size
         self.embed_dim = embed_dim
         self.embedding = nn.Embedding(word_vocab_size, embed_dim)
         self.embedding.weight.requires_grad = requires_grad
+        self._cpu = cpu
 
     def forward(self, x):
         device = x.device
@@ -35,6 +36,9 @@ class WordEmbedding(nn.Module):
         out = flat_out.view(x.size() + (flat_out.size()[-1],))
         out = out.to(device)
         return out
+
+    def to(self, device):
+        return self if self._cpu else super().to(device)
 
 
 class Highway(nn.Module):
@@ -56,11 +60,11 @@ class Highway(nn.Module):
 
 class Embedding(nn.Module):
     def __init__(self, char_vocab_size, glove_vocab_size, word_vocab_size, embed_dim, dropout,
-                 elmo=False, elmo_options_file=None, elmo_weights_file=None):
+                 elmo=False, elmo_options_file=None, elmo_weights_file=None, glove_cpu=False):
         super(Embedding, self).__init__()
         self.word_embedding = WordEmbedding(word_vocab_size, embed_dim)
         self.char_embedding = CharEmbedding(char_vocab_size, embed_dim)
-        self.glove_embedding = WordEmbedding(glove_vocab_size, embed_dim, requires_grad=False)
+        self.glove_embedding = WordEmbedding(glove_vocab_size, embed_dim, requires_grad=False, cpu=glove_cpu)
         self.output_size = 2 * embed_dim
         self.highway1 = Highway(self.output_size, dropout)
         self.highway2 = Highway(self.output_size, dropout)
@@ -177,10 +181,12 @@ class Baseline(nn.Module):
                  max_pool=False,
                  agg='max',
                  num_layers=1,
+                 glove_cpu=False,
                  **kwargs):
         super(Baseline, self).__init__()
         self.embedding = Embedding(char_vocab_size, glove_vocab_size, word_vocab_size, embed_size, dropout,
-                                   elmo=elmo, elmo_options_file=elmo_options_file, elmo_weights_file=elmo_weights_file)
+                                   elmo=elmo, elmo_options_file=elmo_options_file, elmo_weights_file=elmo_weights_file,
+                                   glove_cpu=glove_cpu)
         self.context_embedding = self.embedding
         self.question_embedding = self.embedding
         word_size = self.embedding.output_size

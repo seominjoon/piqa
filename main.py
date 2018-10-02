@@ -83,6 +83,7 @@ def get_args():
         args.train_steps = 2
 
     args.embed_size = args.glove_size
+    args.glove_cpu = not args.glove_cuda
 
     if args.save_dir is None:
         args.save_dir = os.path.join(args.output_dir, 'save')
@@ -137,8 +138,6 @@ def get_common(args):
 
     pprint(args.__dict__)
     piqa_model = Baseline(**args.__dict__).to(device)
-    if not args.glove_cuda:
-        piqa_model.embedding.glove_embedding = piqa_model.embedding.glove_embedding.cpu()
 
     return interface, piqa_model
 
