@@ -65,11 +65,12 @@ For LSTM+SA model:
 python main.py --cuda --num_heads 2 --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
 ```
 
-For LSTM+SA+ELMo model:
+For LSTM+SA+ELMo model (if your GPU does not have 24GB VRAM, ELMo will probably cause OOM so try `--batch_size=32`, which converges a little slowly but still gets a similar accuracy):
 
 ```bash
 python main.py --cuda --num_heads 2 --elmo --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
 ```
+
 By default, these commands will output all interesting files (save, report, etc.) to `/tmp/piqa`. You can change the directory with `--output_dir` argument.
 
 
