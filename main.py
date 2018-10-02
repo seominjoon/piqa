@@ -341,7 +341,7 @@ def embed(args):
     device = torch.device('cuda' if args.cuda else 'cpu')
     interface, piqa_model = get_common(args)
 
-    processor = SquadProcessor(args.char_vocab_size, args.glove_vocab_size, args.word_vocab_size)
+    processor = SquadProcessor(args.char_vocab_size, args.glove_vocab_size, args.word_vocab_size, elmo=args.elmo)
 
     bind_model(interface, processor, piqa_model)
     interface.load(args.iteration, session=args.load_dir)

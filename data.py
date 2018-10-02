@@ -309,14 +309,16 @@ class SquadProcessor(object):
             _fill_tensor(tensor, val)
             tensors[key] = tensor
         if self._elmo:
-            sentences = [[example['context'][span[0]:span[1]] for span in example['context_spans']]
-                         for example in examples]
-            character_ids = self._batch_to_ids(sentences)
-            tensors['context_elmo_idxs'] = character_ids
-            sentences = [[example['question'][span[0]:span[1]] for span in example['question_spans']]
-                         for example in examples]
-            character_ids = self._batch_to_ids(sentences)
-            tensors['question_elmo_idxs'] = character_ids
+            if 'context' in examples[0]:
+                sentences = [[example['context'][span[0]:span[1]] for span in example['context_spans']]
+                             for example in examples]
+                character_ids = self._batch_to_ids(sentences)
+                tensors['context_elmo_idxs'] = character_ids
+            if 'question' in examples[0]:
+                sentences = [[example['question'][span[0]:span[1]] for span in example['question_spans']]
+                             for example in examples]
+                character_ids = self._batch_to_ids(sentences)
+                tensors['question_elmo_idxs'] = character_ids
         return tensors
 
 
