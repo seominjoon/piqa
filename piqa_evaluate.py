@@ -1,4 +1,4 @@
-""" Official v1.1 evaluation script for PIQA (inherited from SQuAD v1.1 evaluation script)."""
+""" Official alpha evaluation script for PIQA (inherited from SQuAD v1.1 evaluation script)."""
 from __future__ import print_function
 
 import os

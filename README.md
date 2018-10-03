@@ -1,5 +1,6 @@
 # Phrase-Indexed Question Answering (PIQA)
 - This is the official github repository for [Phrase-Indexed Question Answering: A New Challenge for Scalable Document Comprehension][paper] (EMNLP 2018).
+- This repository is still in alpha; versioning will start before EMNLP (2 Nov 2019). 
 - Webpage with leaderboard and submission guideline are coming soon. For now, please consider reproducing the baseline models and running the official evaluation routine (below) to become familiar with the challenge format.
 - Much of the work and code are heavily influenced by our former unofficial [repository][mipsqa].
 - Please create a new issue on this repository or contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]) for questions and suggestions.
