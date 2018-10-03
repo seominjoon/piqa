@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 
 from model import Baseline, Loss
 from data import load_glove, load_squad, SquadProcessor, SquadSampler
-from file import FileInterface
+from file_interface import FileInterface
 
 
 def get_args():
