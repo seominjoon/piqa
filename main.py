@@ -132,16 +132,6 @@ def bind_model(interface, processor, model, optimizer=None):
     interface.bind(save=save, load=load)
 
 
-def get_common(args):
-    device = torch.device('cuda' if args.cuda else 'cpu')
-    interface = FileInterface(**args.__dict__)
-
-    pprint(args.__dict__)
-    piqa_model = Baseline(**args.__dict__).to(device)
-
-    return interface, piqa_model
-
-
 def get_dump(dataset, input_, output, results):
     dump = []
     for i, idx in enumerate(input_['idx']):
@@ -163,7 +153,9 @@ def train(args):
     start_time = time.time()
     device = torch.device('cuda' if args.cuda else 'cpu')
 
-    interface, piqa_model = get_common(args)
+    pprint(args.__dict__)
+    interface = FileInterface(**args.__dict__)
+    piqa_model = Baseline(**args.__dict__).to(device)
 
     loss_model = Loss().to(device)
     optimizer = torch.optim.Adam(p for p in piqa_model.parameters() if p.requires_grad)
@@ -304,8 +296,10 @@ def train(args):
 
 def test(args):
     device = torch.device('cuda' if args.cuda else 'cpu')
-    interface, piqa_model = get_common(args)
-    # piqa_model.embedding.glove_embedding = piqa_model.embedding.glove_embedding.cpu()
+
+    pprint(args.__dict__)
+    interface = FileInterface(**args.__dict__)
+    piqa_model = Baseline(**args.__dict__).to(device)
 
     processor = SquadProcessor(args.char_vocab_size, args.glove_vocab_size, args.word_vocab_size, elmo=args.elmo)
 
@@ -339,7 +333,10 @@ def test(args):
 
 def embed(args):
     device = torch.device('cuda' if args.cuda else 'cpu')
-    interface, piqa_model = get_common(args)
+
+    pprint(args.__dict__)
+    interface = FileInterface(**args.__dict__)
+    piqa_model = Baseline(**args.__dict__).to(device)
 
     processor = SquadProcessor(args.char_vocab_size, args.glove_vocab_size, args.word_vocab_size, elmo=args.elmo)
 
