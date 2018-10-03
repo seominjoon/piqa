@@ -82,7 +82,7 @@ Assuming you trust us, since the baseline code is abiding the independence const
 python main.py --cuda --mode test --iteration XXXX --test_path $SQUAD_DEV_PATH
 ```
 
-Where the iteration indicates the step at which the model of interest is saved. Take a look at the standard output during training and pick the one that gives the best performance (which is automatically tracked).
+Where the iteration indicates the step at which the model of interest is saved (e.g. `--iteration 7001`). Take a look at the standard output during training and pick the one that gives the best performance (which is automatically tracked).
 This will output the prediction file at `/tmp/piqa/pred.json`. Now, let's see what the vanilla SQuAD v1.1 evaluator (changed name from `evaluate-v1.1.py` to `evaluate.py`) thinks about it:
 
 ```bash
