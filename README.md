@@ -139,6 +139,11 @@ The encoders will output the embeddings to the default output directory. You can
 python piqa_evaluate.py $SQUAD_DEV_PATH /tmp/piqa/context_emb/ /tmp/piqa/question_emb/
 ```
 
+For our baselines, this takes ~4 minutes on a typical consumer-grade CPU, though keep in mind that the duration will depend on the size of *N* and *d*.
+By default the evaluator assumes the dumped matrices are dense matrices, but you can also work with sparse matrices by giving `--sparse` argument.
+If you have `tqdm`, you can display progress with `--progress` argument. 
+The evaluator does not require `torch` and `nltk`, but it needs `numpy` and `scipy`.
+
 Note that we currently only support *inner product* for the nearest neighbor search (our baseline model uses inner product as well). We will support L1/L2 distances when the submission opens. Please let us know (create an issue) if you think other measures should be also supported. Note that, however, we try to limit to those that are commonly used for approximate search (so it is unlikely that we will support a multilayer perceptron, because it simply does not scale up).
 
 ## Submission
