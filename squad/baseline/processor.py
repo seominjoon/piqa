@@ -165,7 +165,7 @@ class Processor(base.Processor):
         yp2 = model_output['yp2'].item()
         context = example['context']
         context_spans = example['context_spans']
-        pred = _get_pred(context, context_spans, yp1, yp2)
+        pred = get_pred(context, context_spans, yp1, yp2)
         out = {'pred': pred, 'id': example['id']}
         if 'answer_starts' in example:
             y1 = example['answer_starts']
@@ -190,7 +190,7 @@ class Processor(base.Processor):
         out = dense.cpu().numpy()
         context = example['context']
         context_spans = example['context_spans']
-        phrases = tuple(_get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
+        phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
         if self._emb_type == 'sparse':
             out = csc_matrix(out)
         metadata = {'context': context,
@@ -337,7 +337,7 @@ class SparseTensor(object):
 
 # SquadProcessor-specific helpers
 
-def _get_pred(context, spans, yp1, yp2):
+def get_pred(context, spans, yp1, yp2):
     if yp1 >= len(spans):
         print('warning: yp1 is set to 0')
         yp1 = 0
