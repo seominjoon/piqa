@@ -8,9 +8,9 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 
-from model import Baseline, Loss
-from data import load_glove, load_squad, SquadProcessor, SquadSampler
-from file_interface import FileInterface
+from baseline.model import Model, Loss
+from baseline.processor import Processor, Sampler
+from baseline.file_interface import FileInterface
 
 
 def get_args():
@@ -105,33 +105,6 @@ def get_args():
     return args
 
 
-def bind_model(interface, processor, model, optimizer=None):
-    def load(filename, **kwargs):
-        # filename = os.path.join(filename, 'model.pt')
-        state = torch.load(filename)
-        processor.load_state_dict(state['preprocessor'])
-        model.load_state_dict(state['model'])
-        if 'optimizer' in state and optimizer:
-            optimizer.load_state_dict(state['optimizer'])
-        print('Model loaded from %s' % filename)
-
-    def save(filename, **kwargs):
-        state = {
-            'preprocessor': processor.state_dict(),
-            'model': model.state_dict(),
-            'optimizer': optimizer.state_dict()
-        }
-        filename = os.path.join(filename, 'model.pt')
-        torch.save(state, filename)
-        print('Model saved at %s' % filename)
-
-    def infer(input, top_k=100):
-        # input = {'id': '', 'question': '', 'context': ''}
-        model.eval()
-
-    interface.bind(save=save, load=load)
-
-
 def get_dump(dataset, input_, output, results):
     dump = []
     for i, idx in enumerate(input_['idx']):
@@ -149,91 +122,83 @@ def get_dump(dataset, input_, output, results):
     return dump
 
 
+def preprocess(interface, args):
+    """Helper function for caching preprocessed data
+    """
+    # get data
+    print('Loading train and dev data')
+    train_examples = interface.load_train()
+    dev_examples = interface.load_test()
+
+    # iff creating processor
+    print('Loading metadata')
+    metadata = interface.load_metadata()
+
+    print('Constructing processor')
+    processor = Processor(**args.__dict__)
+    processor.construct(train_examples, metadata=metadata)
+
+    # data loader
+    print('Preprocessing datasets and metadata')
+    train_dataset = tuple(processor.preprocess(example) for example in train_examples)
+    dev_dataset = tuple(processor.preprocess(example) for example in dev_examples)
+    processed_metadata = processor.process_metadata(metadata)
+
+    print('Creating data loaders')
+    train_sampler = Sampler(train_dataset, max_context_size=256, max_question_size=32, bucket=True,
+                            shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+                              collate_fn=processor.collate, sampler=train_sampler)
+
+    dev_sampler = Sampler(dev_dataset, bucket=True)
+    dev_loader = DataLoader(dev_dataset, batch_size=args.batch_size,
+                            collate_fn=processor.collate, sampler=dev_sampler)
+
+    if args.preload:
+        train_loader = tuple(train_loader)
+        dev_loader = tuple(dev_loader)
+
+    out = {'processor': processor,
+           'train_dataset': train_dataset,
+           'dev_dataset': dev_dataset,
+           'processed_metadata': processed_metadata,
+           'train_loader': train_loader,
+           'dev_loader': dev_loader}
+
+    return out
+
+
 def train(args):
     start_time = time.time()
     device = torch.device('cuda' if args.cuda else 'cpu')
 
     pprint(args.__dict__)
     interface = FileInterface(**args.__dict__)
-    piqa_model = Baseline(**args.__dict__).to(device)
+    model = Model(**args.__dict__).to(device)
 
     loss_model = Loss().to(device)
-    optimizer = torch.optim.Adam(p for p in piqa_model.parameters() if p.requires_grad)
+    optimizer = torch.optim.Adam(p for p in model.parameters() if p.requires_grad)
 
-    batch_size = args.batch_size
-    char_vocab_size = args.char_vocab_size
-    glove_vocab_size = args.glove_vocab_size
-    word_vocab_size = args.word_vocab_size
-    glove_size = args.glove_size
-    elmo = args.elmo
-    draft = args.draft
-
-    def preprocess(interface_):
-        # get data
-        print('Loading train and dev data')
-        train_examples = load_squad(interface_.train_path, draft=draft)
-        dev_examples = load_squad(interface_.test_path, draft=draft)
-
-        # iff creating processor
-        print('Loading GloVe')
-        glove_words, glove_emb_mat = load_glove(glove_size, vocab_size=args.glove_vocab_size - 2,
-                                                glove_dir=interface_.glove_dir,
-                                                draft=draft)
-
-        print('Constructing processor')
-        processor = SquadProcessor(char_vocab_size, glove_vocab_size, word_vocab_size, elmo=elmo)
-        processor.construct(train_examples, glove_words)
-
-        # data loader
-        print('Preprocessing datasets')
-        train_dataset = tuple(processor.preprocess(example) for example in train_examples)
-        dev_dataset = tuple(processor.preprocess(example) for example in dev_examples)
-
-        print('Creating data loaders')
-        train_sampler = SquadSampler(train_dataset, max_context_size=256, max_question_size=32, bucket=True,
-                                     shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size,
-                                  collate_fn=processor.collate, sampler=train_sampler)
-
-        dev_sampler = SquadSampler(dev_dataset, bucket=True)
-        dev_loader = DataLoader(dev_dataset, batch_size=batch_size,
-                                collate_fn=processor.collate, sampler=dev_sampler)
-
-        if args.preload:
-            train_loader = tuple(train_loader)
-            dev_loader = tuple(dev_loader)
-
-        out = {'glove_emb_mat': glove_emb_mat,
-               'processor': processor,
-               'train_dataset': train_dataset,
-               'dev_dataset': dev_dataset,
-               'train_loader': train_loader,
-               'dev_loader': dev_loader}
-
-        return out
-
-    out = interface.cache(preprocess, interface_=interface) if args.cache else preprocess(interface)
-    glove_emb_mat = out['glove_emb_mat']
+    out = interface.cache(preprocess, args) if args.cache else preprocess(interface, args)
     processor = out['processor']
+    processed_metadata = out['processed_metadata']
     train_dataset = out['train_dataset']
     dev_dataset = out['dev_dataset']
     train_loader = out['train_loader']
     dev_loader = out['dev_loader']
+    interface.bind(processor, model, optimizer=optimizer)
 
-    print("Initializing model weights")
-    piqa_model.load_glove(torch.tensor(glove_emb_mat))
-
-    bind_model(interface, processor, piqa_model, optimizer=optimizer)
+    model.init(processed_metadata)
 
     step = 0
-    best_report = None
+    train_report, dev_report = None, None
 
     print('Training')
-    piqa_model.train()
+    model.train()
     for epoch_idx in range(args.epochs):
         for i, train_batch in enumerate(train_loader):
             train_batch = {key: val.to(device) for key, val in train_batch.items()}
-            model_output = piqa_model(step=step, **train_batch)
+            model_output = model(step=step, **train_batch)
             train_results = processor.postprocess_batch(train_dataset, train_batch, model_output)
             train_loss = loss_model(step=step, **model_output, **train_batch)
             train_f1 = float(np.mean([result['f1'] for result in train_results]))
@@ -247,20 +212,19 @@ def train(args):
 
             # report & eval & save
             if step % args.report_period == 1:
-                report = OrderedDict(step=step, train_loss=train_loss.item(), train_f1=train_f1, train_em=train_em,
-                                     time=time.time() - start_time)
-                interface.report(**report)
-                print(', '.join('%s=%.5r' % (s, r) for s, r in report.items()))
+                train_report = OrderedDict(step=step, train_loss=train_loss.item(), train_f1=train_f1,
+                                           train_em=train_em, time=time.time() - start_time)
+                print(interface.report(**train_report))
 
             if step % args.eval_save_period == 1:
                 with torch.no_grad():
-                    piqa_model.eval()
+                    model.eval()
                     loss_model.eval()
                     pred = {}
                     dev_losses, dev_results = [], []
                     for dev_batch, _ in zip(dev_loader, range(args.eval_steps)):
                         dev_batch = {key: val.to(device) for key, val in dev_batch.items()}
-                        model_output = piqa_model(**dev_batch)
+                        model_output = model(**dev_batch)
                         results = processor.postprocess_batch(dev_dataset, dev_batch, model_output)
 
                         dev_loss = loss_model(step=step, **dev_batch, **model_output)
@@ -273,19 +237,21 @@ def train(args):
                     dev_loss = float(np.mean(dev_losses))
                     dev_f1 = float(np.mean([result['f1'] for result in dev_results]))
                     dev_em = float(np.mean([result['em'] for result in dev_results]))
+                    dev_f1_best = dev_f1 if dev_report is None else max(dev_f1, dev_report['dev_f1_best'])
+                    dev_f1_best_step = step if dev_report is None or dev_f1 > dev_report['dev_f1_best'] else dev_report[
+                        'dev_f1_best_step']
 
-                    report = OrderedDict(step=step, dev_loss=dev_loss, dev_f1=dev_f1, dev_em=dev_em,
-                                         time=time.time() - start_time)
+                    dev_report = OrderedDict(step=step, dev_loss=dev_loss, dev_f1=dev_f1, dev_em=dev_em,
+                                             time=time.time() - start_time, dev_f1_best=dev_f1_best,
+                                             dev_f1_best_step=dev_f1_best_step)
+
                     summary = False
-                    if best_report is None or report['dev_f1'] > best_report['dev_f1']:
-                        best_report = report
+                    if dev_report['dev_f1_best_step'] == step:
                         summary = True
                         interface.save(iteration=step)
                         interface.pred(pred)
-                    interface.report(summary=summary, **report)
-                    print(', '.join('%s=%.5r' % (s, r) for s, r in report.items()),
-                          '(dev_f1_best=%.5r @%d)' % (best_report['dev_f1'], best_report['step']))
-                    piqa_model.train()
+                    print(interface.report(summary=summary, **dev_report))
+                    model.train()
                     loss_model.train()
 
             if step == args.train_steps:
@@ -296,30 +262,29 @@ def train(args):
 
 def test(args):
     device = torch.device('cuda' if args.cuda else 'cpu')
-
     pprint(args.__dict__)
+
     interface = FileInterface(**args.__dict__)
-    piqa_model = Baseline(**args.__dict__).to(device)
+    model = Model(**args.__dict__).to(device)
+    processor = Processor(**args.__dict__)
+    interface.bind(processor, model)
 
-    processor = SquadProcessor(args.char_vocab_size, args.glove_vocab_size, args.word_vocab_size, elmo=args.elmo)
-
-    bind_model(interface, processor, piqa_model)
     interface.load(args.iteration, session=args.load_dir)
 
-    test_examples = load_squad(interface.test_path, draft=args.draft)
+    test_examples = interface.load_test()
     test_dataset = tuple(processor.preprocess(example) for example in test_examples)
 
-    test_sampler = SquadSampler(test_dataset, bucket=True)
+    test_sampler = Sampler(test_dataset, bucket=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, sampler=test_sampler,
                              collate_fn=processor.collate)
 
     print('Inferencing')
     with torch.no_grad():
-        piqa_model.eval()
+        model.eval()
         pred = {}
         for batch_idx, (test_batch, _) in enumerate(zip(test_loader, range(args.eval_steps))):
             test_batch = {key: val.to(device) for key, val in test_batch.items()}
-            model_output = piqa_model(**test_batch)
+            model_output = model(**test_batch)
             results = processor.postprocess_batch(test_dataset, test_batch, model_output)
             if batch_idx % args.dump_period == 0:
                 dump = get_dump(test_dataset, test_batch, model_output, results)
@@ -333,32 +298,31 @@ def test(args):
 
 def embed(args):
     device = torch.device('cuda' if args.cuda else 'cpu')
-
     pprint(args.__dict__)
+
     interface = FileInterface(**args.__dict__)
-    piqa_model = Baseline(**args.__dict__).to(device)
+    model = Model(**args.__dict__).to(device)
+    processor = Processor(**args.__dict__)
+    interface.bind(processor, model)
 
-    processor = SquadProcessor(args.char_vocab_size, args.glove_vocab_size, args.word_vocab_size, elmo=args.elmo)
-
-    bind_model(interface, processor, piqa_model)
     interface.load(args.iteration, session=args.load_dir)
 
-    test_examples = load_squad(interface.test_path, draft=args.draft)
+    test_examples = interface.load_test()
     test_dataset = tuple(processor.preprocess(example) for example in test_examples)
 
-    test_sampler = SquadSampler(test_dataset, bucket=True)
+    test_sampler = Sampler(test_dataset, bucket=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, sampler=test_sampler,
                              collate_fn=processor.collate)
 
     print('Saving embeddings')
     with torch.no_grad():
-        piqa_model.eval()
+        model.eval()
         for batch_idx, (test_batch, _) in enumerate(zip(test_loader, range(args.eval_steps))):
             test_batch = {key: val.to(device) for key, val in test_batch.items()}
 
             if args.mode == 'embed' or args.mode == 'embed_context':
 
-                context_output = piqa_model.get_context(**test_batch)
+                context_output = model.get_context(**test_batch)
                 context_results = processor.postprocess_context_batch(test_dataset, test_batch, context_output,
                                                                       emb_type=args.emb_type)
 
@@ -367,7 +331,7 @@ def embed(args):
 
             if args.mode == 'embed' or args.mode == 'embed_question':
 
-                question_output = piqa_model.get_question(**test_batch)
+                question_output = model.get_question(**test_batch)
                 question_results = processor.postprocess_question_batch(test_dataset, test_batch, question_output,
                                                                         emb_type=args.emb_type)
 
