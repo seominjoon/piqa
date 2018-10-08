@@ -6,10 +6,12 @@ from torch import nn
 class Model(nn.Module, metaclass=ABCMeta):
     def forward(self, *input):
         """
-
         :param input:
         :return: a dict of tensors
         """
+        raise NotImplementedError()
+
+    def init(self, metadata):
         raise NotImplementedError()
 
     def get_context(self, *args, **kwargs):
@@ -21,4 +23,8 @@ class Model(nn.Module, metaclass=ABCMeta):
 
 class Loss(nn.Module, metaclass=ABCMeta):
     def forward(self, *input):
+        """
+        :param input:
+        :return: a scalar tensor for the loss
+        """
         raise NotImplementedError()
