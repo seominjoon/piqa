@@ -76,11 +76,11 @@ def _load_glove(size, glove_dir=None, draft=False):
         raise NotImplementedError()
 
     glove_path = os.path.join(glove_dir, 'glove.6B.%dd.txt' % size)
-    with open(glove_path, 'r') as fp:
+    with open(glove_path, 'rb') as fp:
         vocab = []
         vecs = []
-        for idx, line in enumerate(fp):
-            # line = line.decode('utf-8')
+        for idx, line in enumerate(fp.readlines()):
+            line = line.decode('utf-8')
             tokens = line.strip().split(u' ')
             word = tokens[0]
             vec = list(map(float, tokens[1:]))
