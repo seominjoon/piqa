@@ -1,6 +1,6 @@
 # Phrase-Indexed Question Answering (PIQA)
 - This is the official github repository for [Phrase-Indexed Question Answering: A New Challenge for Scalable Document Comprehension][paper] (EMNLP 2018).
-- This repository is still in alpha; versioning will start before EMNLP (2 Nov 2018). 
+- This repository is still in alpha; things might change wildly before versioning starts (before EMNLP, 2 Nov 2018). 
 - Webpage with leaderboard and submission guideline are coming soon. For now, please consider reproducing the baseline models and running the official evaluation routine (below) to become familiar with the challenge format.
 - Much of the work and code is heavily influenced by our former [project][mipsqa] at Google AI.
 - Please create a new issue on this repository or contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]) for questions and suggestions.
@@ -28,6 +28,9 @@ An important aspect of the challenge is the constraint of *independence* between
 
 Note that it is also not so straightforward to strictly enforce the constraint on an evaluation platform such as CodaLab. For instance, current SQuAD 1.1 evaluator simply provides the test dataset (both context and question) without answers, and ask the model to output predictions, which are then compared against the answers. This setup is not great for PIQA because we cannot know if the submitted model abides the independence constraint. To resolve this issue, a PIQA submission must consist of the two encoders with explicit independence, and the retrieval is performed on the evaluator side. While it is not as convenient as a vanilla SQuAD submission, we tried to make it as intuitive and easy as possible for the purpose :)
 
+## Tasks
+
+- [Phrase-Indexed SQuAD][pi-squad] (PI-SQuAD)
 
 [paper]: https://arxiv.org/abs/1804.07726
 [minjoon]: https://seominjoon.github.io
@@ -39,3 +42,4 @@ Note that it is also not so straightforward to strictly enforce the constraint o
 [elmo]: https://allennlp.org/elmo
 [squad]: https://stanford-qa.com
 [mipsqa]: https://github.com/google/mipsqa
+[pi-squad]: squad/README.md

@@ -248,7 +248,6 @@ if __name__ == "__main__":
     Sampler = from_.Sampler
     Model = from_.Model
     Loss = from_.Loss
-    print(ArgumentParser)
     assert issubclass(ArgumentParser, base.ArgumentParser)
     assert issubclass(FileInterface, base.FileInterface)
     assert issubclass(Processor, base.Processor)
