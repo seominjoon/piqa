@@ -283,7 +283,7 @@ class Baseline(nn.Module):
         q1 = qd1['dense']
         qd2 = self.question_end(q, mq)
         q2 = qd2['dense']
-        out = list(torch.cat([q1, q2], 1))
+        out = list(torch.cat([q1, q2], 1).unsqueeze(1))
         return out
 
 
