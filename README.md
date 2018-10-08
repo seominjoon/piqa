@@ -42,4 +42,4 @@ Note that it is also not so straightforward to strictly enforce the constraint o
 [elmo]: https://allennlp.org/elmo
 [squad]: https://stanford-qa.com
 [mipsqa]: https://github.com/google/mipsqa
-[pi-squad]: squad/README.md
+[pi-squad]: squad/
