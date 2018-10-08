@@ -261,6 +261,22 @@ class Processor(base.processor.Processor):
     def process_metadata(self, metadata):
         return {'glove_emb_mat': torch.tensor(metadata['glove_emb_mat'])}
 
+    def get_dump(self, dataset, input_, output, results):
+        dump = []
+        for i, idx in enumerate(input_['idx']):
+            example = dataset[idx]
+            each = {'id': example['id'],
+                    'context': example['context'],
+                    'question': example['question'],
+                    'answer_starts': example['answer_starts'],
+                    'answer_ends': example['answer_ends'],
+                    'context_spans': example['context_spans'],
+                    'yp1': output['yp1'][i].cpu().numpy(),
+                    'yp2': output['yp2'][i].cpu().numpy(),
+                    }
+            dump.append(each)
+        return dump
+
 
 class Sampler(base.processor.Sampler):
     def __init__(self, dataset, max_context_size=None, max_question_size=None, bucket=False, shuffle=False):
