@@ -124,6 +124,10 @@ def get_predictions(context_emb_dir, question_emb_dir, q2c, sparse=False, progre
 
         argmax = m.argmax(0)
         predictions[id_] = phrases[argmax]
+    
+    # Dump piqa_pred
+    # with open('test/piqa_pred.json', 'w') as f:
+    #     f.write(json.dumps(predictions))
 
     return predictions
 
