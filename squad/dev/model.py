@@ -1,0 +1,263 @@
+import torch
+from torch import nn
+
+import baseline.model
+from baseline.model import Embedding
+
+
+class SelfSeqSparse(nn.Module):
+    def __init__(self, input_size, hidden_size, dropout, activation):
+        super(SelfSeqSparse, self).__init__()
+        self.dropout = torch.nn.Dropout(p=dropout)
+        self.query_lstm = nn.LSTM(input_size=input_size,
+                                  hidden_size=hidden_size,
+                                  batch_first=True,
+                                  bidirectional=True)
+        self.key_lstm = nn.LSTM(input_size=input_size,
+                                hidden_size=hidden_size,
+                                batch_first=True,
+                                bidirectional=True)
+        if activation == 'sigmoid':
+            self.activation = nn.Sigmoid()
+        elif activation == 'relu':
+            self.activation = nn.ReLU()
+
+    def forward(self, input_, mask):
+        input_ = self.dropout(input_)
+        key_input = input_
+        query_input = input_
+        key, _ = self.key_lstm(key_input)
+        query, _ = self.key_lstm(query_input)
+        sparse = query.matmul(key.transpose(1, 2)) + mask.unsqueeze(1)
+        sparse = self.activation(sparse)
+        return {'value': sparse, 'key': key, 'query': query}
+
+
+class ContextBoundary(baseline.model.ContextBoundary):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, identity=True, sparse=False,
+                 sparse_activation='relu', num_layers=1):
+        super(ContextBoundary, self).__init__(input_size,
+                                              hidden_size,
+                                              dropout,
+                                              num_heads,
+                                              identity=identity,
+                                              num_layers=num_layers)
+        self.sparse = None
+        if sparse:
+            self.sparse = SelfSeqSparse(hidden_size * 2, hidden_size, dropout, sparse_activation)
+
+    def forward(self, x, m):
+        modules = dict(self.named_children())
+        x = self.dropout(x)
+        for i in range(self.num_layers):
+            x, _ = modules['lstm%d' % i](x)
+        atts = [x] if self.identity else []
+        for i in range(self.att_num_heads):
+            a = modules['self_att%d' % i](x, m)
+            atts.append(a['value'])
+
+        dense = torch.cat(atts, 2)
+
+        sparse = None
+        if self.sparse is not None:
+            sparse = self.sparse(x, m)
+        return {'dense': dense, 'sparse': sparse['value'] if sparse is not None else None,
+                'key': sparse['key'] if sparse is not None else None,
+                'query': sparse['query'] if sparse is not None else None}
+
+
+class QuestionBoundary(ContextBoundary):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, sparse=False, sparse_activation='relu',
+                 max_pool=False):
+        super(QuestionBoundary, self).__init__(input_size, hidden_size, dropout, num_heads, identity=False,
+                                               sparse=sparse, sparse_activation=sparse_activation)
+        self.max_pool = max_pool
+
+    def forward(self, x, m):
+        d = super().forward(x, m)
+        if self.max_pool:
+            dense = d['dense'].max(1)[0]
+            sparse = d['sparse'] if d['sparse'] is None else d['sparse'].max(1)[0]
+        else:
+            dense = d['dense'][:, 0, :]
+            sparse = d['sparse'] if d['sparse'] is None else d['sparse'][:, 0, :]
+        return {'dense': dense, 'sparse': sparse}
+
+
+class Model(baseline.Model):
+    def __init__(self,
+                 char_vocab_size,
+                 glove_vocab_size,
+                 word_vocab_size,
+                 hidden_size,
+                 embed_size,
+                 dropout,
+                 num_heads,
+                 max_ans_len=7,
+                 elmo=False,
+                 elmo_options_file=None,
+                 elmo_weights_file=None,
+                 sparse=False,
+                 sparse_activation='relu',
+                 dense=True,
+                 max_pool=False,
+                 agg='max',
+                 num_layers=1,
+                 **kwargs):
+        super(Model, self).__init__(char_vocab_size,
+                                    glove_vocab_size,
+                                    word_vocab_size,
+                                    hidden_size,
+                                    embed_size,
+                                    dropout,
+                                    num_heads,
+                                    max_ans_len=max_ans_len,
+                                    elmo=elmo,
+                                    elmo_options_file=elmo_options_file,
+                                    elmo_weights_file=elmo_weights_file,
+                                    max_pool=max_pool,
+                                    agg=agg,
+                                    num_layers=num_layers)
+        word_size = self.embedding.output_size
+        context_input_size = word_size
+        question_input_size = word_size
+        self.sparse = sparse
+        self.dense = dense
+        self.context_start = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                             sparse_activation=sparse_activation, num_layers=num_layers)
+        self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                           sparse_activation=sparse_activation, num_layers=num_layers)
+        self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                               sparse_activation=sparse_activation, max_pool=max_pool)
+        self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                             sparse_activation=sparse_activation, max_pool=max_pool)
+
+    def forward(self,
+                context_char_idxs,
+                context_glove_idxs,
+                context_word_idxs,
+                question_char_idxs,
+                question_glove_idxs,
+                question_word_idxs,
+                context_elmo_idxs=None,
+                question_elmo_idxs=None,
+                num_samples=None,
+                **kwargs):
+        q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
+        x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
+
+        mq = ((question_glove_idxs == 0).float() * -1e9)
+        qd1 = self.question_start(q, mq)
+        qd2 = self.question_end(q, mq)
+        q1, qs1 = qd1['dense'], qd1['sparse']
+        q2, qs2 = qd2['dense'], qd2['sparse']
+        # print(qs1[0, question_word_idxs[0] > 0])
+
+        mx = (context_glove_idxs == 0).float() * -1e9
+
+        mxq = (context_glove_idxs.unsqueeze(2) == question_glove_idxs.unsqueeze(1)) & (
+            context_glove_idxs.unsqueeze(2) > 0)
+
+        hd1 = self.context_start(x, mx)
+        hd2 = self.context_end(x, mx)
+        x1, xs1 = hd1['dense'], hd1['sparse']
+        x2, xs2 = hd2['dense'], hd2['sparse']
+
+        logits1, logits2 = 0.0, 0.0
+        if self.dense:
+            logits1 += torch.sum(x1 * q1.unsqueeze(1), 2) + mx
+            logits2 += torch.sum(x2 * q2.unsqueeze(1), 2) + mx
+        if self.sparse:
+            logits1 += (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
+            logits2 += (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
+
+        prob1 = self.softmax(logits1)
+        prob2 = self.softmax(logits2)
+        prob = prob1.unsqueeze(2) * prob2.unsqueeze(1)
+        mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
+            prob.device)
+        prob *= mask
+        _, yp1 = prob.max(2)[0].max(1)
+        _, yp2 = prob.max(1)[0].max(1)
+
+        return {'logits1': logits1,
+                'logits2': logits2,
+                'yp1': yp1,
+                'yp2': yp2,
+                'x1': x1,
+                'x2': x2,
+                'q1': q1,
+                'q2': q2,
+                'xs1': xs1,
+                'xs2': xs2,
+                'xsi1': context_glove_idxs,
+                'xsi2': context_glove_idxs,
+                'qs1': qs1,
+                'qs2': qs2,
+                'qsi1': question_glove_idxs,
+                'qsi2': question_glove_idxs}
+
+    def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
+        l = (context_glove_idxs > 0).sum(1)
+        mx = (context_glove_idxs == 0).float() * -1e9
+        x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
+        xd1 = self.context_start(x, mx)
+        x1, xs1, xsi1 = xd1['dense'], xd1['sparse'], context_glove_idxs
+        xd2 = self.context_end(x, mx)
+        x2, xs2, xsi2 = xd2['dense'], xd2['sparse'], context_glove_idxs
+        out = []
+        for k, (lb, x1b, x2b) in enumerate(zip(l, x1, x2)):
+            if xs1 is not None:
+                xs1b, xs2b = xs1[k], xs2[k]
+                xsi1b, xsi2b = xsi1[k], xsi2[k]
+                sparse_list = []
+                idx_list = []
+            pos_list = []
+            vec_list = []
+            for i in range(lb):
+                for j in range(i, min(i + self.max_ans_len, lb)):
+                    vec = torch.cat([x1b[i], x2b[j]], 0)
+                    pos_list.append((i, j))
+                    vec_list.append(vec)
+                    if xs1 is not None:
+                        sparse = torch.cat([xs1b[i, :lb], xs2b[j, :lb]], 0)
+                        idx = torch.cat([xsi1b[:lb], xsi2b[:lb] + 400002], 0)
+                        sparse_list.append(sparse)
+                        idx_list.append(idx)
+
+            dense = torch.stack(vec_list, 0)
+            if xs1 is None:
+                sparse = None
+            else:
+                sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
+                idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
+                sparse = (idx_cat, sparse_cat, 800004)
+            out.append((tuple(pos_list), dense, sparse))
+        return tuple(out)
+
+    def get_question(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None,
+                     **kwargs):
+        l = (question_glove_idxs > 0).sum(1)
+        mq = ((question_glove_idxs == 0).float() * -1e9)
+        q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
+        qd1 = self.question_start(q, mq)
+        q1, qs1, qsi1 = qd1['dense'], qd1['sparse'], question_glove_idxs
+        qd2 = self.question_end(q, mq)
+        q2, qs2, qsi2 = qd2['dense'], qd2['sparse'], question_glove_idxs
+        dense_list = list(torch.cat([q1, q2], 1))
+        sparse_list = []
+        if qs1 is None:
+            for lb in l:
+                sparse_list.append(None)
+        else:
+            for lb, val1, idx1, val2, idx2 in zip(l, qs1, qsi1, qs2, qsi2):
+                val = torch.cat([val1[:lb], val2[:lb]], 0).unsqueeze(0)
+                idx = torch.cat([idx1[:lb], idx2[:lb] + 400002], 0).unsqueeze(0)
+                sparse = (idx, val, 800004)
+                sparse_list.append(sparse)
+        out = tuple(map(tuple, zip(dense_list, sparse_list)))
+        return out
+
+
+class Loss(baseline.Loss):
+    pass
