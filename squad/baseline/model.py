@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-import base.model
+import base
 
 
 class CharEmbedding(nn.Module):
@@ -165,7 +165,7 @@ class QuestionBoundary(ContextBoundary):
         return {'dense': dense}
 
 
-class Model(base.model.Model):
+class Model(base.Model):
     def __init__(self,
                  char_vocab_size,
                  glove_vocab_size,
@@ -287,7 +287,7 @@ class Model(base.model.Model):
         return out
 
 
-class Loss(base.model.Loss):
+class Loss(base.Loss):
     def __init__(self, **kwargs):
         super(Loss, self).__init__()
         self.cel = nn.CrossEntropyLoss()

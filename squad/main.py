@@ -1,32 +1,30 @@
+import sys
 import time
 from collections import OrderedDict
 from pprint import pprint
+import importlib
 
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
 
-from baseline.argument_parser import ArgumentParser
-from baseline.model import Model, Loss
-from baseline.processor import Processor, Sampler
-from baseline.file_interface import FileInterface
+import base
 
 
 def preprocess(interface, args):
     """Helper function for caching preprocessed data
     """
-    # get data
     print('Loading train and dev data')
     train_examples = interface.load_train()
     dev_examples = interface.load_test()
 
-    # iff creating processor
+    # load metadata, such as GloVe
     print('Loading metadata')
     metadata = interface.load_metadata()
 
     print('Constructing processor')
     processor = Processor(**args.__dict__)
-    processor.construct(train_examples, metadata=metadata)
+    processor.construct(train_examples, metadata)
 
     # data loader
     print('Preprocessing datasets and metadata')
@@ -35,12 +33,11 @@ def preprocess(interface, args):
     processed_metadata = processor.process_metadata(metadata)
 
     print('Creating data loaders')
-    train_sampler = Sampler(train_dataset, max_context_size=256, max_question_size=32, bucket=True,
-                            shuffle=True)
+    train_sampler = Sampler(train_dataset, 'train', **args.__dict__)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
                               collate_fn=processor.collate, sampler=train_sampler)
 
-    dev_sampler = Sampler(dev_dataset, bucket=True)
+    dev_sampler = Sampler(dev_dataset, 'dev', **args.__dict__)
     dev_loader = DataLoader(dev_dataset, batch_size=args.batch_size,
                             collate_fn=processor.collate, sampler=dev_sampler)
 
@@ -155,8 +152,8 @@ def test(args):
     pprint(args.__dict__)
 
     interface = FileInterface(**args.__dict__)
-    model = Model(**args.__dict__).to(device)
     processor = Processor(**args.__dict__)
+    model = Model(**args.__dict__).to(device)
     interface.bind(processor, model)
 
     interface.load(args.iteration, session=args.load_dir)
@@ -164,7 +161,7 @@ def test(args):
     test_examples = interface.load_test()
     test_dataset = tuple(processor.preprocess(example) for example in test_examples)
 
-    test_sampler = Sampler(test_dataset, bucket=True)
+    test_sampler = Sampler(test_dataset, 'test', **args.__dict__)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, sampler=test_sampler,
                              collate_fn=processor.collate)
 
@@ -200,7 +197,7 @@ def embed(args):
     test_examples = interface.load_test()
     test_dataset = tuple(processor.preprocess(example) for example in test_examples)
 
-    test_sampler = Sampler(test_dataset, bucket=True)
+    test_sampler = Sampler(test_dataset, 'test', **args.__dict__)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, sampler=test_sampler,
                              collate_fn=processor.collate)
 
@@ -213,8 +210,7 @@ def embed(args):
             if args.mode == 'embed' or args.mode == 'embed_context':
 
                 context_output = model.get_context(**test_batch)
-                context_results = processor.postprocess_context_batch(test_dataset, test_batch, context_output,
-                                                                      emb_type=args.emb_type)
+                context_results = processor.postprocess_context_batch(test_dataset, test_batch, context_output)
 
                 for id_, phrases, matrix in context_results:
                     interface.context_emb(id_, phrases, matrix, emb_type=args.emb_type)
@@ -222,8 +218,7 @@ def embed(args):
             if args.mode == 'embed' or args.mode == 'embed_question':
 
                 question_output = model.get_question(**test_batch)
-                question_results = processor.postprocess_question_batch(test_dataset, test_batch, question_output,
-                                                                        emb_type=args.emb_type)
+                question_results = processor.postprocess_question_batch(test_dataset, test_batch, question_output)
 
                 for id_, emb in question_results:
                     interface.question_emb(id_, emb, emb_type=args.emb_type)
@@ -233,6 +228,7 @@ def embed(args):
 
 def main():
     argument_parser = ArgumentParser()
+    argument_parser.add_arguments()
     args = argument_parser.parse_args()
     if args.mode == 'train':
         train(args)
@@ -245,4 +241,18 @@ def main():
 
 
 if __name__ == "__main__":
+    from_ = importlib.import_module(sys.argv[1])
+    ArgumentParser = from_.ArgumentParser
+    FileInterface = from_.FileInterface
+    Processor = from_.Processor
+    Sampler = from_.Sampler
+    Model = from_.Model
+    Loss = from_.Loss
+    print(ArgumentParser)
+    assert issubclass(ArgumentParser, base.ArgumentParser)
+    assert issubclass(FileInterface, base.FileInterface)
+    assert issubclass(Processor, base.Processor)
+    assert issubclass(Sampler, base.Sampler)
+    assert issubclass(Model, base.Model)
+    assert issubclass(Loss, base.Loss)
     main()

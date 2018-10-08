@@ -8,6 +8,8 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def add_arguments(self):
         home = os.path.expanduser('~')
+        self.add_argument('model', type=str)
+
         self.add_argument('--mode', type=str, default='train')
         self.add_argument('--iteration', type=str, default='0')
         self.add_argument('--pause', type=int, default=0)  # ignore this argument.
@@ -19,7 +21,7 @@ class ArgumentParser(argparse.ArgumentParser):
                           help='location of the test data')
 
         # Output paths
-        self.add_argument('--output_dir', type=str, default='/tmp/piqa', help='Output directory')
+        self.add_argument('--output_dir', type=str, default='/tmp/piqa/squad/', help='Output directory')
         self.add_argument('--save_dir', type=str, default=None, help='location for saving the model')
         self.add_argument('--load_dir', type=str, default=None, help='location for loading the model')
         self.add_argument('--dump_dir', type=str, default=None, help='location for dumping outputs')
@@ -45,7 +47,6 @@ class ArgumentParser(argparse.ArgumentParser):
     def parse_args(self, **kwargs):
         args = super().parse_args()
         if args.draft:
-            args.glove_vocab_size = 102
             args.batch_size = 2
             args.eval_steps = 1
             args.eval_save_period = 2

@@ -1,8 +1,8 @@
 import os
-import base.argument_parser
+import base
 
 
-class ArgumentParser(base.argument_parser.ArgumentParser):
+class ArgumentParser(base.ArgumentParser):
     def __init__(self, description='baseline', **kwargs):
         super(ArgumentParser, self).__init__(description=description)
 
@@ -30,8 +30,12 @@ class ArgumentParser(base.argument_parser.ArgumentParser):
         self.add_argument('--agg', type=str, default='max', help='max|logsumexp')
         self.add_argument('--num_layers', type=int, default=1)
 
-        # Training arguments
+        # Training arguments. Only valid during training
         self.add_argument('--dropout', type=float, default=0.2)
+        self.add_argument('--max_context_size', type=int, default=256)
+        self.add_argument('--max_question_size', type=int, default=32)
+        self.add_argument('--no_bucket', default=False, action='store_true')
+        self.add_argument('--no_shuffle', default=False, action='store_true')
 
         # Other arguments
         self.add_argument('--emb_type', type=str, default='dense')
@@ -39,6 +43,12 @@ class ArgumentParser(base.argument_parser.ArgumentParser):
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
+
+        if args.draft:
+            args.glove_vocab_size = 102
+
         args.embed_size = args.glove_size
         args.glove_cpu = not args.glove_cuda
+        args.bucket = not args.no_bucket
+        args.shuffle = not args.no_shuffle
         return args

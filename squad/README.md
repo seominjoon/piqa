@@ -1,3 +1,10 @@
+# Phrase-Indexed SQuAD (PI-SQuAD)
+
+First, change your directory to `./squad/`:
+```bash
+cd ./squad/
+```
+
 ## Baseline Models
 
 ### 0. Download requirements
@@ -23,36 +30,38 @@ In our [paper][paper], we have introduced three baseline models:
 For LSTM model:
 
 ```bash
-python main.py --cuda --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
+python main.py baseline --cuda --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
 ```
 
 For LSTM+SA model:
 
 ```bash
-python main.py --cuda --num_heads 2 --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
+python main.py baseline --cuda --num_heads 2 --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
 ```
 
 For LSTM+SA+ELMo model (if your GPU does not have 24GB VRAM, ELMo will probably cause OOM so try `--batch_size 32`, which converges a little slowly but still gets a similar accuracy):
 
 ```bash
-python main.py --cuda --num_heads 2 --elmo --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
+python main.py baseline --cuda --num_heads 2 --elmo --train_path $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
 ```
 
-By default, these commands will output all interesting files (save, report, etc.) to `/tmp/piqa`. You can change the directory with `--output_dir` argument.
+Note that the first positional argument, `baseline`, indicates that we are using the python modules in `./baseline/` directory.
+In future, you can easily add a new model by creating a new module (e.g. `./my_model/`) and giving the positional argument (`my_model`).
+By default, these commands will output all interesting files (save, report, etc.) to `/tmp/piqa/squad`. You can change the directory with `--output_dir` argument.
 
 
 ### 2. Easy Evaluation
 Assuming you trust us, since the baseline code is abiding the independence constraint, let's just try to output the prediction file from a full (context+question) dataset, and evaluate it with the original SQuAD v1.1 evaluator. To do this with LSTM model, simply run:
 
 ```bash
-python main.py --cuda --mode test --iteration XXXX --test_path $SQUAD_DEV_PATH
+python main.py baseline --cuda --mode test --iteration XXXX --test_path $SQUAD_DEV_PATH
 ```
 
 Where the iteration indicates the step at which the model of interest is saved (e.g. `--iteration 7001`). Take a look at the standard output during training and pick the one that gives the best performance (which is automatically tracked).
-This will output the prediction file at `/tmp/piqa/pred.json`. Now, let's see what the vanilla SQuAD v1.1 evaluator (changed name from `evaluate-v1.1.py` to `evaluate.py`) thinks about it:
+This will output the prediction file at `/tmp/piqa/squad/pred.json`. Now, let's see what the vanilla SQuAD v1.1 evaluator (changed name from `evaluate-v1.1.py` to `evaluate.py`) thinks about it:
 
 ```bash
-python evaluate.py $SQUAD_DEV_PATH /tmp/piqa/pred.json
+python evaluate.py $SQUAD_DEV_PATH /tmp/piqa/squad/pred.json
 ```
 
 That was easy! But why is this not an *official evaluation*? Because we had a big assumption in the beginning, that you trust us that our encoders are independent. But who knows?
@@ -62,7 +71,7 @@ That was easy! But why is this not an *official evaluation*? Because we had a bi
 We need a strict evaluation method that enforces the independence between the encoders. To do so, our (PIQA) evaluator requires three inputs (instead of two). The first input is identical to that of the official evaluator: the path to the test data with the answers. The second and the third correspond to the directories for the phrase embeddings and the question embeddings, respectively. Here is an example directory structure:
 
 ```
-/tmp/piqa/
+/tmp/piqa/squad/
 +-- context_emb
 |   +-- Super_Bowl_50_0.npz
 |   +-- Super_Bowl_50_0.json
@@ -91,19 +100,19 @@ In order to output these directories from our model, we run `main.py` with two d
 For document encoder:
 
 ```bash
-python main.py --cuda --mode embed_context --iteration XXXX --test_path $SQUAD_DEV_CONTEXT_PATH
+python main.py baseline --cuda --mode embed_context --iteration XXXX --test_path $SQUAD_DEV_CONTEXT_PATH
 ```
 
 For question encoder:
 
 ```bash
-python main.py --cuda --mode embed_question --iteration XXXX --test_path $SQUAD_DEV_QUESTION_PATH
+python main.py baseline --cuda --mode embed_question --iteration XXXX --test_path $SQUAD_DEV_QUESTION_PATH
 ```
 
 The encoders will output the embeddings to the default output directory. You can also control the target directories with `--context_emb_dir` and `--question_emb_dir`, respectively. Using uncompressed dense (default) numpy dump for the LSTM model, these directories take about 3 GB of space.  Now one can *officially* evaluate by:
 
 ```bash
-python piqa_evaluate.py $SQUAD_DEV_PATH /tmp/piqa/context_emb/ /tmp/piqa/question_emb/
+python piqa_evaluate.py $SQUAD_DEV_PATH /tmp/piqa/squad/context_emb/ /tmp/piqa/squad/question_emb/
 ```
 
 For our baselines, this takes ~4 minutes on a typical consumer-grade CPU, though keep in mind that the duration will depend on the size of *N* and *d*.

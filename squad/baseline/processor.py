@@ -9,7 +9,7 @@ import torch.utils.data
 from scipy.sparse import csc_matrix
 import numpy as np
 
-import base.processor
+import base
 
 
 class Tokenizer(object):
@@ -31,7 +31,7 @@ class PTBWordTokenizer(Tokenizer):
         return _get_spans(in_, words)
 
 
-class Processor(base.processor.Processor):
+class Processor(base.Processor):
     keys = {'context_word_idxs',
             'context_glove_idxs',
             'context_char_idxs',
@@ -53,7 +53,8 @@ class Processor(base.processor.Processor):
     pad = '<pad>'
     unk = '<unk>'
 
-    def __init__(self, char_vocab_size, glove_vocab_size, word_vocab_size, elmo=False, draft=False, **kwargs):
+    def __init__(self, char_vocab_size=None, glove_vocab_size=None, word_vocab_size=None, elmo=False, draft=False,
+                 emb_type=None, **kwargs):
         self._word_tokenizer = PTBWordTokenizer()
         self._sent_tokenizer = PTBSentTokenizer()
         self._char_vocab_size = char_vocab_size
@@ -64,21 +65,22 @@ class Processor(base.processor.Processor):
             from allennlp.modules.elmo import batch_to_ids
             self._batch_to_ids = batch_to_ids
         self._draft = draft
+        self._emb_type = emb_type
         self._glove = None
 
         self._word_cache = {}
         self._sent_cache = {}
-        self._word2idx = {}
-        self._word2idx_ext = {}
-        self._char2idx = {}
+        self._word2idx_dict = {}
+        self._word2idx_ext_dict = {}
+        self._char2idx_dict = {}
 
-    def construct(self, examples, metadata=None):
+    def construct(self, examples, metadata):
         assert metadata is not None
         glove_vocab = metadata['glove_vocab']
         word_counter, lower_word_counter, char_counter = Counter(), Counter(), Counter()
         for example in examples:
             for text in (example['context'], example['question']):
-                for span in self.word_tokenize(example['context']):
+                for span in self._word_tokenize(example['context']):
                     word = text[span[0]:span[1]]
                     word_counter[word] += 1
                     lower_word_counter[word] += 1
@@ -88,17 +90,17 @@ class Processor(base.processor.Processor):
         word_vocab = tuple(item[0] for item in sorted(word_counter.items(), key=lambda item: -item[1]))
         word_vocab = (Processor.pad, Processor.unk) + word_vocab
         word_vocab = word_vocab[:self._word_vocab_size] if len(word_vocab) > self._word_vocab_size else word_vocab
-        self._word2idx = {word: idx for idx, word in enumerate(word_vocab)}
+        self._word2idx_dict = {word: idx for idx, word in enumerate(word_vocab)}
 
         char_vocab = tuple(item[0] for item in sorted(char_counter.items(), key=lambda item: -item[1]))
         char_vocab = (Processor.pad, Processor.unk) + char_vocab
         char_vocab = char_vocab[:self._char_vocab_size] if len(char_vocab) > self._char_vocab_size else char_vocab
-        self._char2idx = {char: idx for idx, char in enumerate(char_vocab)}
+        self._char2idx_dict = {char: idx for idx, char in enumerate(char_vocab)}
 
         ext_vocab = (Processor.pad, Processor.unk) + tuple(glove_vocab)
         if len(ext_vocab) > self._glove_vocab_size:
             ext_vocab = ext_vocab[:self._glove_vocab_size]
-        self._word2idx_ext = {ext: idx for idx, ext in enumerate(ext_vocab)}
+        self._word2idx_ext_dict = {ext: idx for idx, ext in enumerate(ext_vocab)}
         # assert max(self._word2idx_ext.values()) + 1 == self._glove_vocab_size, max(self._word2idx_ext.values()) + 1
 
     def state_dict(self):
@@ -108,44 +110,20 @@ class Processor(base.processor.Processor):
         return out
 
     def load_state_dict(self, in_):
-        self._word2idx = in_['word2idx']
-        self._word2idx_ext = in_['word2idx_ext']
-        self._char2idx = in_['char2idx']
-
-    def word_tokenize(self, string):
-        if string in self._word_cache:
-            return self._word_cache[string]
-        spans = self._word_tokenizer.tokenize(string)
-        self._word_cache[string] = spans
-        return spans
-
-    def sent_tokenize(self, string):
-        if string in self._sent_cache:
-            return self._sent_cache[string]
-        spans = self._sent_tokenizer.tokenize(string)
-        self._sent_cache[string] = spans
-        return spans
-
-    def word2idx(self, word):
-        return self._word2idx[word] if word in self._word2idx else 1
-
-    def word2idx_ext(self, word):
-        word = word.lower()
-        return self._word2idx_ext[word] if word in self._word2idx_ext else 1
-
-    def char2idx(self, char):
-        return self._char2idx[char] if char in self._char2idx else 1
+        self._word2idx_dict = in_['word2idx']
+        self._word2idx_ext_dict = in_['word2idx_ext']
+        self._char2idx_dict = in_['char2idx']
 
     def preprocess(self, example):
         prepro_example = {'idx': example['idx']}
 
         if 'context' in example:
             context = example['context']
-            context_spans = self.word_tokenize(context)
+            context_spans = self._word_tokenize(context)
             context_words = tuple(context[span[0]:span[1]] for span in context_spans)
-            context_word_idxs = tuple(map(self.word2idx, context_words))
-            context_glove_idxs = tuple(map(self.word2idx_ext, context_words))
-            context_char_idxs = tuple(tuple(map(self.char2idx, word)) for word in context_words)
+            context_word_idxs = tuple(map(self._word2idx, context_words))
+            context_glove_idxs = tuple(map(self._word2idx_ext, context_words))
+            context_char_idxs = tuple(tuple(map(self._char2idx, word)) for word in context_words)
             prepro_example['context_spans'] = context_spans
             prepro_example['context_word_idxs'] = context_word_idxs
             prepro_example['context_glove_idxs'] = context_glove_idxs
@@ -153,11 +131,11 @@ class Processor(base.processor.Processor):
 
         if 'question' in example:
             question = example['question']
-            question_spans = self.word_tokenize(example['question'])
+            question_spans = self._word_tokenize(example['question'])
             question_words = tuple(question[span[0]:span[1]] for span in question_spans)
-            question_word_idxs = tuple(map(self.word2idx, question_words))
-            question_glove_idxs = tuple(map(self.word2idx_ext, question_words))
-            question_char_idxs = tuple(tuple(map(self.char2idx, word)) for word in question_words)
+            question_word_idxs = tuple(map(self._word2idx, question_words))
+            question_glove_idxs = tuple(map(self._word2idx_ext, question_words))
+            question_char_idxs = tuple(tuple(map(self._char2idx, word)) for word in question_words)
             prepro_example['question_spans'] = question_spans
             prepro_example['question_word_idxs'] = question_word_idxs
             prepro_example['question_glove_idxs'] = question_glove_idxs
@@ -207,30 +185,30 @@ class Processor(base.processor.Processor):
                         for i, idx in enumerate(model_input['idx']))
         return results
 
-    def postprocess_context(self, example, context_output, emb_type='dense'):
+    def postprocess_context(self, example, context_output):
         pos_tuple, dense = context_output
         out = dense.cpu().numpy()
         context = example['context']
         context_spans = example['context_spans']
         phrases = tuple(_get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
-        if emb_type == 'sparse':
+        if self._emb_type == 'sparse':
             out = csc_matrix(out)
         return example['cid'], phrases, out
 
-    def postprocess_context_batch(self, dataset, model_input, context_output, emb_type='dense'):
-        results = tuple(self.postprocess_context(dataset[idx], context_output[i], emb_type=emb_type)
+    def postprocess_context_batch(self, dataset, model_input, context_output):
+        results = tuple(self.postprocess_context(dataset[idx], context_output[i])
                         for i, idx in enumerate(model_input['idx']))
         return results
 
-    def postprocess_question(self, example, question_output, emb_type='dense'):
+    def postprocess_question(self, example, question_output):
         dense = question_output
         out = dense.cpu().numpy()
-        if emb_type == 'sparse':
+        if self._emb_type == 'sparse':
             out = csc_matrix(out)
         return example['id'], out
 
-    def postprocess_question_batch(self, dataset, model_input, question_output, emb_type='dense'):
-        results = tuple(self.postprocess_question(dataset[idx], question_output[i], emb_type=emb_type)
+    def postprocess_question_batch(self, dataset, model_input, question_output):
+        results = tuple(self.postprocess_question(dataset[idx], question_output[i])
                         for i, idx in enumerate(model_input['idx']))
         return results
 
@@ -277,17 +255,49 @@ class Processor(base.processor.Processor):
             dump.append(each)
         return dump
 
+    # private methods below
+    def _word_tokenize(self, string):
+        if string in self._word_cache:
+            return self._word_cache[string]
+        spans = self._word_tokenizer.tokenize(string)
+        self._word_cache[string] = spans
+        return spans
 
-class Sampler(base.processor.Sampler):
-    def __init__(self, dataset, max_context_size=None, max_question_size=None, bucket=False, shuffle=False):
-        super(Sampler, self).__init__(dataset)
+    def _sent_tokenize(self, string):
+        if string in self._sent_cache:
+            return self._sent_cache[string]
+        spans = self._sent_tokenizer.tokenize(string)
+        self._sent_cache[string] = spans
+        return spans
+
+    def _word2idx(self, word):
+        return self._word2idx_dict[word] if word in self._word2idx_dict else 1
+
+    def _word2idx_ext(self, word):
+        word = word.lower()
+        return self._word2idx_ext_dict[word] if word in self._word2idx_ext_dict else 1
+
+    def _char2idx(self, char):
+        return self._char2idx_dict[char] if char in self._char2idx_dict else 1
+
+
+class Sampler(base.Sampler):
+    def __init__(self, dataset, data_type, max_context_size=None, max_question_size=None, bucket=False, shuffle=False,
+                 **kwargs):
+        super(Sampler, self).__init__(dataset, data_type)
+        if data_type == 'dev' or data_type == 'test':
+            max_context_size = None
+            max_question_size = None
+            self.shuffle = False
+
         self.max_context_size = max_context_size
         self.max_question_size = max_question_size
+        self.shuffle = shuffle
         self.bucket = bucket
 
         idxs = tuple(idx for idx in range(len(dataset))
-                     if (max_context_size is None or len(dataset[idx]['context_spans']) <= self.max_context_size) and
-                     (max_question_size is None or len(dataset[idx]['question_spans']) <= self.max_question_size))
+                     if (max_context_size is None or len(dataset[idx]['context_spans']) <= max_context_size) and
+                     (max_question_size is None or len(dataset[idx]['question_spans']) <= max_question_size))
 
         if shuffle:
             idxs = random.sample(idxs, len(idxs))
