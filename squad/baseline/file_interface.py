@@ -7,6 +7,11 @@ import base
 
 
 class FileInterface(base.FileInterface):
+    def __init__(self, glove_dir, glove_size, **kwargs):
+        self._glove_dir = glove_dir
+        self._glove_size = glove_size
+        super(FileInterface, self).__init__(**kwargs)
+
     def load_train(self):
         return _load_squad(self._train_path, draft=self._draft)
 
@@ -14,9 +19,7 @@ class FileInterface(base.FileInterface):
         return _load_squad(self._test_path, draft=self._draft)
 
     def load_metadata(self):
-        glove_size = self._kwargs['glove_size']
-        glove_dir = self._kwargs['glove_dir']
-        glove_vocab, glove_emb_mat = _load_glove(glove_size, glove_dir=glove_dir, draft=self._draft)
+        glove_vocab, glove_emb_mat = _load_glove(self._glove_size, glove_dir=self._glove_dir, draft=self._draft)
         return {'glove_vocab': glove_vocab,
                 'glove_emb_mat': glove_emb_mat}
 
