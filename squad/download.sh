@@ -2,6 +2,9 @@
 # Install requirements; assuming Python 3.6
 pip install nltk==3.3 numpy==1.15.2 scipy==1.1.0 torch==0.4.1 allennlp==0.6.1 tqdm gensim
 
+# Install NSML
+python -m pip install --index-url https://test.pypi.org/simple nsml
+
 DATA_DIR=$HOME/data/
 mkdir $DATA_DIR
 
