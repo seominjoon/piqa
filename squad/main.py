@@ -258,5 +258,6 @@ if __name__ == "__main__":
     # Delete the following four lines for nsml-free implementation
     from nsml import IS_ON_NSML
     if IS_ON_NSML:
-        from baseline.nsml_file_interface import FileInterface
+        nfi = importlib.import_module('%s.nsml_file_interface' % sys.argv[1])
+        FileInterface = nfi.FileInterface
     main()
