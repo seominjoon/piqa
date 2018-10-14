@@ -3,6 +3,8 @@ import baseline.file_interface
 
 
 class FileInterface(baseline.file_interface.FileInterface, base.nsml_file_interface.FileInterface):
-    def __init__(self, glove_dir, glove_size, **kwargs):
+    def __init__(self, glove_dir, glove_size, elmo_options_file, elmo_weights_file, **kwargs):
         glove_dir = '/static/glove_squad'
-        super(FileInterface, self).__init__(glove_dir, glove_size, **kwargs)
+        elmo_options_file = '/static/elmo/options.json'
+        elmo_weights_file = '/static/elmo/weights.hdf5'
+        super(FileInterface, self).__init__(glove_dir, glove_size, elmo_options_file, elmo_weights_file, **kwargs)
