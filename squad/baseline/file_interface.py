@@ -7,9 +7,11 @@ import base
 
 
 class FileInterface(base.FileInterface):
-    def __init__(self, glove_dir, glove_size, **kwargs):
+    def __init__(self, glove_dir, glove_size, elmo_options_file, elmo_weights_file, **kwargs):
         self._glove_dir = glove_dir
         self._glove_size = glove_size
+        self._elmo_options_file = elmo_options_file
+        self._elmo_weights_file = elmo_weights_file
         super(FileInterface, self).__init__(**kwargs)
 
     def load_train(self):
@@ -21,7 +23,9 @@ class FileInterface(base.FileInterface):
     def load_metadata(self):
         glove_vocab, glove_emb_mat = _load_glove(self._glove_size, glove_dir=self._glove_dir, draft=self._draft)
         return {'glove_vocab': glove_vocab,
-                'glove_emb_mat': glove_emb_mat}
+                'glove_emb_mat': glove_emb_mat,
+                'elmo_options_file': self._elmo_options_file,
+                'elmo_weights_file': self._elmo_weights_file}
 
 
 def _load_squad(squad_path, draft=False):
@@ -76,11 +80,11 @@ def _load_glove(size, glove_dir=None, draft=False):
         raise NotImplementedError()
 
     glove_path = os.path.join(glove_dir, 'glove.6B.%dd.txt' % size)
-    with open(glove_path, 'r') as fp:
+    with open(glove_path, 'rb') as fp:
         vocab = []
         vecs = []
         for idx, line in enumerate(fp):
-            # line = line.decode('utf-8')
+            line = line.decode('utf-8')
             tokens = line.strip().split(u' ')
             word = tokens[0]
             vec = list(map(float, tokens[1:]))

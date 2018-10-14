@@ -237,7 +237,9 @@ class Processor(base.Processor):
         return tensors
 
     def process_metadata(self, metadata):
-        return {'glove_emb_mat': torch.tensor(metadata['glove_emb_mat'])}
+        return {'glove_emb_mat': torch.tensor(metadata['glove_emb_mat']),
+                'elmo_options_file': metadata['elmo_options_file'],
+                'elmo_weights_file': metadata['elmo_weights_file']}
 
     def get_dump(self, dataset, input_, output, results):
         dump = []

@@ -59,8 +59,8 @@ class Highway(nn.Module):
 
 
 class Embedding(nn.Module):
-    def __init__(self, char_vocab_size, glove_vocab_size, word_vocab_size, embed_dim, dropout,
-                 elmo=False, elmo_options_file=None, elmo_weights_file=None, glove_cpu=False):
+    def __init__(self, char_vocab_size, glove_vocab_size, word_vocab_size, embed_dim, dropout, elmo=False,
+                 glove_cpu=False):
         super(Embedding, self).__init__()
         self.word_embedding = WordEmbedding(word_vocab_size, embed_dim)
         self.char_embedding = CharEmbedding(char_vocab_size, embed_dim)
@@ -68,13 +68,10 @@ class Embedding(nn.Module):
         self.output_size = 2 * embed_dim
         self.highway1 = Highway(self.output_size, dropout)
         self.highway2 = Highway(self.output_size, dropout)
-        if elmo:
-            assert elmo_options_file is not None and elmo_weights_file is not None
-            from allennlp.modules.elmo import Elmo
-            self.elmo = Elmo(elmo_options_file, elmo_weights_file, 1, dropout=0)
-            self.output_size += self.elmo.get_output_dim()
-        else:
-            self.elmo = None
+        self.use_elmo = elmo
+        self.elmo = None
+        if self.use_elmo:
+            self.output_size += 1024
 
     def load_glove(self, glove_emb_mat):
         device = self.glove_embedding.embedding.weight.device
@@ -82,12 +79,22 @@ class Embedding(nn.Module):
         glove_emb_mat = torch.cat([torch.zeros(2, glove_emb_mat.size()[-1]).to(device), glove_emb_mat], dim=0)
         self.glove_embedding.embedding.weight = torch.nn.Parameter(glove_emb_mat, requires_grad=False)
 
+    def load_elmo(self, elmo_options_file, elmo_weights_file):
+        device = self.word_embedding.embedding.weight.device
+        from allennlp.modules.elmo import Elmo
+        self.elmo = Elmo(elmo_options_file, elmo_weights_file, 1, dropout=0).to(device)
+
+    def init(self, processed_metadata):
+        self.load_glove(processed_metadata['glove_emb_mat'])
+        if self.use_elmo:
+            self.load_elmo(processed_metadata['elmo_options_file'], processed_metadata['elmo_weights_file'])
+
     def forward(self, cx, gx, x, ex=None):
         cx = self.char_embedding(cx)
         gx = self.glove_embedding(gx)
         output = torch.cat([cx, gx], -1)
         output = self.highway2(self.highway1(output))
-        if self.elmo is not None:
+        if self.use_elmo:
             elmo, = self.elmo(ex)['elmo_representations']
             output = torch.cat([output, elmo], 2)
         return output
@@ -176,8 +183,6 @@ class Model(base.Model):
                  num_heads,
                  max_ans_len=7,
                  elmo=False,
-                 elmo_options_file=None,
-                 elmo_weights_file=None,
                  max_pool=False,
                  agg='max',
                  num_layers=1,
@@ -185,8 +190,7 @@ class Model(base.Model):
                  **kwargs):
         super(Model, self).__init__()
         self.embedding = Embedding(char_vocab_size, glove_vocab_size, word_vocab_size, embed_size, dropout,
-                                   elmo=elmo, elmo_options_file=elmo_options_file, elmo_weights_file=elmo_weights_file,
-                                   glove_cpu=glove_cpu)
+                                   elmo=elmo, glove_cpu=glove_cpu)
         self.context_embedding = self.embedding
         self.question_embedding = self.embedding
         word_size = self.embedding.output_size
@@ -251,7 +255,7 @@ class Model(base.Model):
                 'q2': q2}
 
     def init(self, processed_metadata):
-        self.embedding.load_glove(processed_metadata['glove_emb_mat'])
+        self.embedding.init(processed_metadata)
 
     def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
         l = (context_glove_idxs > 0).sum(1)

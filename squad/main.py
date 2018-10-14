@@ -61,11 +61,6 @@ def train(args):
 
     pprint(args.__dict__)
     interface = FileInterface(**args.__dict__)
-    model = Model(**args.__dict__).to(device)
-
-    loss_model = Loss().to(device)
-    optimizer = torch.optim.Adam(p for p in model.parameters() if p.requires_grad)
-
     out = interface.cache(preprocess, args) if args.cache else preprocess(interface, args)
     processor = out['processor']
     processed_metadata = out['processed_metadata']
@@ -73,9 +68,14 @@ def train(args):
     dev_dataset = out['dev_dataset']
     train_loader = out['train_loader']
     dev_loader = out['dev_loader']
-    interface.bind(processor, model, optimizer=optimizer)
 
+    model = Model(**args.__dict__).to(device)
     model.init(processed_metadata)
+
+    loss_model = Loss().to(device)
+    optimizer = torch.optim.Adam(p for p in model.parameters() if p.requires_grad)
+
+    interface.bind(processor, model, optimizer=optimizer)
 
     step = 0
     train_report, dev_report = None, None
