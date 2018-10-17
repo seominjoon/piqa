@@ -152,8 +152,18 @@ def test(args):
     pprint(args.__dict__)
 
     interface = FileInterface(**args.__dict__)
-    processor = Processor(**args.__dict__)
+    # use cache for metadata
+    if args.cache:
+        out = interface.cache(preprocess, args) 
+        processor = out['processor']
+        processed_metadata = out['processed_metadata']
+    else:
+        processor = Processor(**args.__dict__)
+        metadata = interface.load_metadata()
+        processed_metadata = processor.process_metadata(metadata)
+
     model = Model(**args.__dict__).to(device)
+    model.init(processed_metadata)
     interface.bind(processor, model)
 
     interface.load(args.iteration, session=args.load_dir)
@@ -188,8 +198,18 @@ def embed(args):
     pprint(args.__dict__)
 
     interface = FileInterface(**args.__dict__)
+    # use cache for metadata
+    if args.cache:
+        out = interface.cache(preprocess, args) 
+        processor = out['processor']
+        processed_metadata = out['processed_metadata']
+    else:
+        processor = Processor(**args.__dict__)
+        metadata = interface.load_metadata()
+        processed_metadata = processor.process_metadata(metadata)
+
     model = Model(**args.__dict__).to(device)
-    processor = Processor(**args.__dict__)
+    model.init(processed_metadata)
     interface.bind(processor, model)
 
     interface.load(args.iteration, session=args.load_dir)

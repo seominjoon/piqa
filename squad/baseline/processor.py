@@ -104,9 +104,9 @@ class Processor(base.Processor):
         # assert max(self._word2idx_ext.values()) + 1 == self._glove_vocab_size, max(self._word2idx_ext.values()) + 1
 
     def state_dict(self):
-        out = {'word2idx': self._word2idx,
-               'word2idx_ext': self._word2idx_ext,
-               'char2idx': self._char2idx}
+        out = {'word2idx': self._word2idx_dict,
+               'word2idx_ext': self._word2idx_ext_dict,
+               'char2idx': self._char2idx_dict}
         return out
 
     def load_state_dict(self, in_):
