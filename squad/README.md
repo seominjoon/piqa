@@ -20,6 +20,9 @@ This will install following python packages:
 - `allenlp==0.6.1`: only if you want to try using [ELMo][elmo]; the installation takes some time.
 - `tqdm`, `gensim`: optional.
 
+You might also want to consider using docker image `minjoon/research:180908` that meets all of these requirements.
+The sample CodaLab submission also uses this. 
+
 Download SQuAD v1.1 train and dev set at [`$SQUAD_TRAIN_PATH`][squad-train] and [`$SQUAD_DEV_PATH`][squad-dev], respectively. Also, for official evaluation, download [`$SQUAD_DEV_CONTEXT_PATH`][squad-context] and [`$SQUAD_DEV_QUESTION_PATH`][squad-question]. Note that a simple script `split.py` is used to obtain both files from the original dev dataset.
 
 
