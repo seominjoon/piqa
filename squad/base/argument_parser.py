@@ -42,6 +42,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--cuda', default=False, action='store_true')
         self.add_argument('--preload', default=False, action='store_true')
         self.add_argument('--cache', default=False, action='store_true')
+        self.add_argument('--archive', default=False, action='store_true')
         self.add_argument('--dump_period', type=int, default=20)
 
     def parse_args(self, **kwargs):

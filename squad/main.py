@@ -246,8 +246,9 @@ def embed(args):
 
             print('[%d/%d]' % (batch_idx + 1, len(test_loader)))
 
-    print('Archiving')
-    interface.archive()
+    if args.archive:
+        print('Archiving')
+        interface.archive()
 
 
 def main():

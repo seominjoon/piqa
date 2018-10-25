@@ -9,16 +9,17 @@ import csv
 
 
 class FileInterface(object):
-    def __init__(self, save_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
+    def __init__(self, mode, save_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
                  cache_path, dump_dir, train_path, test_path, draft, **kwargs):
+        self._mode = mode
         self._train_path = train_path
         self._test_path = test_path
         self._save_dir = save_dir
         self._report_path = report_path
         self._dump_dir = dump_dir
         self._pred_path = pred_path
-        self._question_emb_dir = question_emb_dir
-        self._context_emb_dir = context_emb_dir
+        self._question_emb_dir = os.path.splitext(question_emb_dir)[0]
+        self._context_emb_dir = os.path.splitext(context_emb_dir)[0]
         self._cache_path = cache_path
         self._args_path = os.path.join(save_dir, 'args.json')
         self._draft = draft
@@ -111,10 +112,13 @@ class FileInterface(object):
                 json.dump(phrases, fp)
 
     def archive(self):
-        shutil.make_archive(self._context_emb_dir, 'zip', self._context_emb_dir)
-        shutil.make_archive(self._question_emb_dir, 'zip', self._question_emb_dir)
-        shutil.rmtree(self._context_emb_dir)
-        shutil.rmtree(self._question_emb_dir)
+        if self._mode == 'embed' or self._mode == 'embed_context':
+            shutil.make_archive(self._context_emb_dir, 'zip', self._context_emb_dir)
+            shutil.rmtree(self._context_emb_dir)
+
+        if self._mode == 'embed' or self._mode == 'embed_question':
+            shutil.make_archive(self._question_emb_dir, 'zip', self._question_emb_dir)
+            shutil.rmtree(self._question_emb_dir)
 
     def cache(self, preprocess, args):
         if os.path.exists(self._cache_path):
