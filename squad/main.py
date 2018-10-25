@@ -81,6 +81,7 @@ def train(args):
     train_report, dev_report = None, None
 
     print('Training')
+    interface.save_args(args.__dict__)
     model.train()
     for epoch_idx in range(args.epochs):
         for i, train_batch in enumerate(train_loader):
@@ -244,6 +245,9 @@ def embed(args):
                     interface.question_emb(id_, emb, emb_type=args.emb_type)
 
             print('[%d/%d]' % (batch_idx + 1, len(test_loader)))
+
+    print('Archiving')
+    interface.archive()
 
 
 def main():

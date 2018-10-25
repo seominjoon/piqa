@@ -1,7 +1,8 @@
 import json
 import os
-import torch
+import shutil
 
+import torch
 import scipy.sparse
 import numpy as np
 import csv
@@ -19,6 +20,7 @@ class FileInterface(object):
         self._question_emb_dir = question_emb_dir
         self._context_emb_dir = context_emb_dir
         self._cache_path = cache_path
+        self._args_path = os.path.join(save_dir, 'args.json')
         self._draft = draft
         self._save = None
         self._load = None
@@ -37,6 +39,12 @@ class FileInterface(object):
         if save_fn is None:
             save_fn = self._save
         save_fn(filename)
+
+    def save_args(self, args):
+        if not os.path.exists(self._save_dir):
+            os.makedirs(self._save_dir)
+        with open(self._args_path, 'w') as fp:
+            json.dump(args, fp)
 
     def load(self, iteration, load_fn=None, session=None):
         if session is None:
@@ -101,6 +109,12 @@ class FileInterface(object):
         else:
             with open(json_path, 'w') as fp:
                 json.dump(phrases, fp)
+
+    def archive(self):
+        shutil.make_archive(self._context_emb_dir, 'zip', self._context_emb_dir)
+        shutil.make_archive(self._question_emb_dir, 'zip', self._question_emb_dir)
+        shutil.rmtree(self._context_emb_dir)
+        shutil.rmtree(self._question_emb_dir)
 
     def cache(self, preprocess, args):
         if os.path.exists(self._cache_path):
