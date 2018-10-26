@@ -52,7 +52,7 @@ class ArgumentParser(base.ArgumentParser):
         if args.elmo_options_file is None:
             args.elmo_options_file = os.path.join(args.static_dir, 'elmo', 'options.json')
         if args.elmo_weights_file is None:
-            args.elmo_weights_file = os.path.join(args.static_dir, 'elmo', 'weights.json')
+            args.elmo_weights_file = os.path.join(args.static_dir, 'elmo', 'weights.hdf5')
 
         args.embed_size = args.glove_size
         args.glove_cpu = not args.glove_cuda
