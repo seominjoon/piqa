@@ -12,10 +12,10 @@ class ArgumentParser(base.ArgumentParser):
         home = os.path.expanduser('~')
 
         # Metadata paths
-        self.add_argument('--glove_dir', type=str, default=os.path.join(home, 'data', 'glove'),
-                          help='location of GloVe')
-        self.add_argument('--elmo_options_file', type=str, default=os.path.join(home, 'data', 'elmo', 'options.json'))
-        self.add_argument('--elmo_weights_file', type=str, default=os.path.join(home, 'data', 'elmo', 'weights.hdf5'))
+        self.add_argument('--static_dir', type=str, default=os.path.join(home, 'data'))
+        self.add_argument('--glove_dir', type=str, default=None, help='location of GloVe')
+        self.add_argument('--elmo_options_file', type=str, default=None)
+        self.add_argument('--elmo_weights_file', type=str, default=None)
 
         # Model arguments
         self.add_argument('--word_vocab_size', type=int, default=10000)
@@ -46,6 +46,13 @@ class ArgumentParser(base.ArgumentParser):
 
         if args.draft:
             args.glove_vocab_size = 102
+
+        if args.glove_dir is None:
+            args.glove_dir = os.path.join(args.static_dir, 'glove')
+        if args.elmo_options_file is None:
+            args.elmo_options_file = os.path.join(args.static_dir, 'elmo', 'options.json')
+        if args.elmo_weights_file is None:
+            args.elmo_weights_file = os.path.join(args.static_dir, 'elmo', 'weights.json')
 
         args.embed_size = args.glove_size
         args.glove_cpu = not args.glove_cuda

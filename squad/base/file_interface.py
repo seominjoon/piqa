@@ -52,9 +52,6 @@ class FileInterface(object):
         if session is None:
             session = self._save_dir
         filename = os.path.join(session, str(iteration), 'model.pt')
-        dirname = os.path.dirname(filename)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
         if load_fn is None:
             load_fn = self._load
         load_fn(filename)
