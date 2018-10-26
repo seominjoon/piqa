@@ -9,8 +9,9 @@ import csv
 
 
 class FileInterface(object):
-    def __init__(self, mode, save_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
+    def __init__(self, cuda, mode, save_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
                  cache_path, dump_dir, train_path, test_path, draft, **kwargs):
+        self._cuda = cuda
         self._mode = mode
         self._train_path = train_path
         self._test_path = test_path
@@ -137,7 +138,7 @@ class FileInterface(object):
     def bind(self, processor, model, optimizer=None):
         def load(filename, **kwargs):
             # filename = os.path.join(filename, 'model.pt')
-            state = torch.load(filename)
+            state = torch.load(filename, map_location=None if self._cuda else 'cpu')
             processor.load_state_dict(state['preprocessor'])
             model.load_state_dict(state['model'])
             if 'optimizer' in state and optimizer:
