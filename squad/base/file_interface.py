@@ -9,13 +9,14 @@ import csv
 
 
 class FileInterface(object):
-    def __init__(self, cuda, mode, save_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
+    def __init__(self, cuda, mode, save_dir, load_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
                  cache_path, dump_dir, train_path, test_path, draft, **kwargs):
         self._cuda = cuda
         self._mode = mode
         self._train_path = train_path
         self._test_path = test_path
         self._save_dir = save_dir
+        self._load_dir = load_dir
         self._report_path = report_path
         self._dump_dir = dump_dir
         self._pred_path = pred_path
@@ -48,10 +49,13 @@ class FileInterface(object):
         with open(self._args_path, 'w') as fp:
             json.dump(args, fp)
 
-    def load(self, iteration, load_fn=None, session=None):
+    def load(self, iteration='0', load_fn=None, session=None):
         if session is None:
-            session = self._save_dir
-        filename = os.path.join(session, str(iteration), 'model.pt')
+            session = self._load_dir
+        if iteration == '0':
+            filename = session
+        else:
+            filename = os.path.join(session, str(iteration), 'model.pt')
         if load_fn is None:
             load_fn = self._load
         load_fn(filename)

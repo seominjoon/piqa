@@ -1,0 +1,5 @@
+cl add bundle squad-data//dev-v1.1.json .
+cl run dev-v1.1.json:dev-v1.1.json piqa-master:piqa-master "python piqa-master/squad/split.py dev-v1.1.json dev-v1.1-context.json dev-v1.1-question.json" -n run-split --request-docker-image minjoon/research:180908
+cl make run-split/dev-v1.1-context.json -n dev-v1.1-context.json
+cl make run-split/dev-v1.1-question.json -n dev-v1.1-question.json
+cl run dev-v1.1-question.json:dev-v1.1-question.json piqa-master:piqa-master save:save "python piqa-master/squad/main.py baseline --static_dir /static --iteration 14001 --archive --load_dir save --mode embed_question --test_path dev-v1.1-question.json --question_emb_dir question" -n run-question --request-docker-image minjoon/research:180908
