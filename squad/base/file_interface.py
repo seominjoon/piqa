@@ -92,14 +92,14 @@ class FileInterface(object):
     def question_emb(self, id_, emb, emb_type='dense'):
         if not os.path.exists(self._question_emb_dir):
             os.makedirs(self._question_emb_dir)
-        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez
+        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez_compressed
         path = os.path.join(self._question_emb_dir, '%s.npz' % id_)
         savez(path, emb)
 
     def context_emb(self, id_, phrases, emb, emb_type='dense'):
         if not os.path.exists(self._context_emb_dir):
             os.makedirs(self._context_emb_dir)
-        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez
+        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez_compressed
         emb_path = os.path.join(self._context_emb_dir, '%s.npz' % id_)
         json_path = os.path.join(self._context_emb_dir, '%s.json' % id_)
 
