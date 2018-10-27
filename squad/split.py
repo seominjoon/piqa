@@ -24,7 +24,8 @@ if __name__ == '__main__':
         for para in article['paragraphs']:
             del para['context']
             for qa in para['qas']:
-                del qa['answers']
+                if 'answers' in qa:
+                    del qa['answers']
 
     with open(args.context_path, 'w') as fp:
         json.dump(context, fp)
