@@ -38,7 +38,6 @@ class ArgumentParser(base.ArgumentParser):
         self.add_argument('--no_shuffle', default=False, action='store_true')
 
         # Other arguments
-        self.add_argument('--emb_type', type=str, default='dense', help='dense|sparse')
         self.add_argument('--glove_cuda', default=False, action='store_true')
 
     def parse_args(self, **kwargs):

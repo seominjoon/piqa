@@ -5,3 +5,4 @@ nltk==3.3
 allennlp==0.6.1
 tqdm
 gensim
+faiss

@@ -37,6 +37,10 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--eval_save_period', type=int, default=500)
         self.add_argument('--report_period', type=int, default=100)
 
+        # Faiss arguments
+        self.add_argument('--nlist', type=int, default=1)
+        self.add_argument('--nprobe', type=int, default=1)
+
         # Other arguments
         self.add_argument('--draft', default=False, action='store_true')
         self.add_argument('--cuda', default=False, action='store_true')
@@ -44,6 +48,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--cache', default=False, action='store_true')
         self.add_argument('--archive', default=False, action='store_true')
         self.add_argument('--dump_period', type=int, default=20)
+        self.add_argument('--emb_type', type=str, default='dense', help='dense|sparse')
 
     def parse_args(self, **kwargs):
         args = super().parse_args()

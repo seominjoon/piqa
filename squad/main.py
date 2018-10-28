@@ -251,6 +251,74 @@ def embed(args):
         interface.archive()
 
 
+def serve(args):
+    # serve_demo: Load saved embeddings, serve question model. question in, results out.
+    # serve_question: only serve question model. question in, vector out.
+    # serve_context: only serve context model. context in, phrase-vector pairs out.
+    # serve: serve all three.
+    device = torch.device('cuda' if args.cuda else 'cpu')
+    pprint(args.__dict__)
+
+    interface = FileInterface(**args.__dict__)
+    # use cache for metadata
+    if args.cache:
+        out = interface.cache(preprocess, args)
+        processor = out['processor']
+        processed_metadata = out['processed_metadata']
+    else:
+        processor = Processor(**args.__dict__)
+        metadata = interface.load_metadata()
+        processed_metadata = processor.process_metadata(metadata)
+
+    model = Model(**args.__dict__).to(device)
+    model.init(processed_metadata)
+    interface.bind(processor, model)
+
+    interface.load(args.iteration, session=args.load_dir)
+
+    with torch.no_grad():
+        model.eval()
+        if args.mode == 'serve_demo':
+            if args.emb_type == 'dense':
+                import faiss
+                print('Loading phrase-vector pairs')
+                d = 4 * args.hidden_size * args.num_heads
+                phrases = []
+                embs = []
+                for cur_phrases, emb in interface.context_load(emb_type=args.emb_type):
+                    phrases.extend(cur_phrases)
+                    embs.append(emb)
+                emb = np.concatenate(embs, 0)
+
+                index = faiss.IndexFlatIP(d)  # Exact Search
+
+                if args.nlist != args.nprobe:
+                    # Approximate Search. nlist > nprobe makes it faster and less accurate
+                    index = faiss.IndexIVFFlat(index, d, args.nlist, faiss.METRIC_INNER_PRODUCT)
+                    index.train(emb)
+                    index.add(emb)
+                    index.nprobe = args.nprobe
+                else:
+                    index.add(emb)
+
+                def retrieve(question, k):
+                    example = {'question': question, 'id': 'real', 'idx': 0}
+                    dataset = (processor.preprocess(example), )
+                    loader = DataLoader(dataset, batch_size=1, collate_fn=processor.collate)
+                    batch = next(iter(loader))
+                    question_output = model.get_question(**batch)
+                    question_results = processor.postprocess_question_batch(dataset, batch, question_output)
+                    id_, emb = question_results[0]
+                    D, I = index.search(emb, k)
+                    out = [phrases[i] for i in I[0]]
+                    return out
+
+                import time
+                start = time.time()
+                print(retrieve('When did Martin Luther die?', 10))
+                print(time.time() - start)
+
+
 def main():
     argument_parser = ArgumentParser()
     argument_parser.add_arguments()
@@ -261,6 +329,8 @@ def main():
         test(args)
     elif args.mode == 'embed' or args.mode == 'embed_context' or args.mode == 'embed_question':
         embed(args)
+    elif args.mode.startswith('serve'):
+        serve(args)
     else:
         raise Exception()
 

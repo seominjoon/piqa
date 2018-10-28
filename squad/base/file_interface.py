@@ -113,6 +113,21 @@ class FileInterface(object):
             with open(json_path, 'w') as fp:
                 json.dump(phrases, fp)
 
+    def context_load(self, emb_type='dense'):
+        paths = os.listdir(self._context_emb_dir)
+        json_paths = tuple(os.path.join(self._context_emb_dir, path)
+                           for path in paths if os.path.splitext(path)[1] == '.json')
+        npz_paths = tuple('%s.npz' % os.path.splitext(path)[0] for path in json_paths)
+        for json_path, npz_path in zip(json_paths, npz_paths):
+            with open(json_path, 'r') as fp:
+                phrases = json.load(fp)
+            if emb_type == 'dense':
+                emb = np.load(npz_path)['arr_0']
+            else:
+                emb = scipy.sparse.load_npz(npz_path)
+            yield phrases, emb
+
+
     def archive(self):
         if self._mode == 'embed' or self._mode == 'embed_context':
             shutil.make_archive(self._context_emb_dir, 'zip', self._context_emb_dir)
