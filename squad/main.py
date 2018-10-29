@@ -233,8 +233,10 @@ def embed(args):
                 context_output = model.get_context(**test_batch)
                 context_results = processor.postprocess_context_batch(test_dataset, test_batch, context_output)
 
-                for id_, phrases, matrix in context_results:
-                    interface.context_emb(id_, phrases, matrix, emb_type=args.emb_type)
+                for id_, phrases, matrix, metadata in context_results:
+                    if not args.metadata:
+                        metadata = None
+                    interface.context_emb(id_, phrases, matrix, metadata=metadata, emb_type=args.emb_type)
 
             if args.mode == 'embed' or args.mode == 'embed_question':
 
@@ -279,27 +281,37 @@ def serve(args):
     with torch.no_grad():
         model.eval()
         if args.mode == 'serve_demo':
+            from flask import Flask, request, jsonify
+            from flask_cors import CORS
+
+            from tornado.wsgi import WSGIContainer
+            from tornado.httpserver import HTTPServer
+            from tornado.ioloop import IOLoop
+
             if args.emb_type == 'dense':
                 import faiss
                 print('Loading phrase-vector pairs')
                 d = 4 * args.hidden_size * args.num_heads
                 phrases = []
                 embs = []
-                for cur_phrases, emb in interface.context_load(emb_type=args.emb_type):
+                results = []
+                for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
                     phrases.extend(cur_phrases)
                     embs.append(emb)
+                    for span in metadata['answer_spans']:
+                        results.append([metadata['context'], span[0], span[1]])
                 emb = np.concatenate(embs, 0)
 
-                index = faiss.IndexFlatIP(d)  # Exact Search
+                search_index = faiss.IndexFlatIP(d)  # Exact Search
 
                 if args.nlist != args.nprobe:
                     # Approximate Search. nlist > nprobe makes it faster and less accurate
-                    index = faiss.IndexIVFFlat(index, d, args.nlist, faiss.METRIC_INNER_PRODUCT)
-                    index.train(emb)
-                    index.add(emb)
-                    index.nprobe = args.nprobe
+                    search_index = faiss.IndexIVFFlat(search_index, d, args.nlist, faiss.METRIC_INNER_PRODUCT)
+                    search_index.train(emb)
+                    search_index.add(emb)
+                    search_index.nprobe = args.nprobe
                 else:
-                    index.add(emb)
+                    search_index.add(emb)
 
                 def retrieve(question, k):
                     example = {'question': question, 'id': 'real', 'idx': 0}
@@ -309,14 +321,38 @@ def serve(args):
                     question_output = model.get_question(**batch)
                     question_results = processor.postprocess_question_batch(dataset, batch, question_output)
                     id_, emb = question_results[0]
-                    D, I = index.search(emb, k)
-                    out = [phrases[i] for i in I[0]]
+                    D, I = search_index.search(emb, k)
+                    out = [tuple(results[i]) + ('%.4r' % d.item(),) for d, i in zip(D[0], I[0])]
                     return out
+            else:
+                raise NotImplementedError()
 
-                import time
-                start = time.time()
-                print(retrieve('When did Martin Luther die?', 10))
-                print(time.time() - start)
+            # Demo server. Requires flask and tornado
+
+            app = Flask(__name__, static_url_path='/static')
+
+            app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+            CORS(app)
+
+            @app.route('/')
+            def index():
+                return app.send_static_file('index.html')
+
+            @app.route('/files/<path:path>')
+            def static_files(path):
+                return app.send_static_file('files/' + path)
+
+            @app.route('/api', methods=['GET'])
+            def api():
+                query = request.args['query']
+                out = retrieve(query, 5)
+                return jsonify(out)
+
+            print('Starting server at %d' % args.port)
+            http_server = HTTPServer(WSGIContainer(app))
+            http_server.listen(args.port)
+            IOLoop.instance().start()
+
 
 
 def main():

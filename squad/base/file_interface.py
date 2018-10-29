@@ -96,7 +96,7 @@ class FileInterface(object):
         path = os.path.join(self._question_emb_dir, '%s.npz' % id_)
         savez(path, emb)
 
-    def context_emb(self, id_, phrases, emb, emb_type='dense'):
+    def context_emb(self, id_, phrases, emb, metadata=None, emb_type='dense'):
         if not os.path.exists(self._context_emb_dir):
             os.makedirs(self._context_emb_dir)
         savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez_compressed
@@ -113,20 +113,30 @@ class FileInterface(object):
             with open(json_path, 'w') as fp:
                 json.dump(phrases, fp)
 
-    def context_load(self, emb_type='dense'):
+        if metadata is not None:
+            metadata_path = os.path.join(self._context_emb_dir, '%s.metadata' % id_)
+            with open(metadata_path, 'w') as fp:
+                json.dump(metadata, fp)
+
+    def context_load(self, metadata=False, emb_type='dense'):
         paths = os.listdir(self._context_emb_dir)
         json_paths = tuple(os.path.join(self._context_emb_dir, path)
                            for path in paths if os.path.splitext(path)[1] == '.json')
         npz_paths = tuple('%s.npz' % os.path.splitext(path)[0] for path in json_paths)
-        for json_path, npz_path in zip(json_paths, npz_paths):
+        metadata_paths = tuple('%s.metadata' % os.path.splitext(path)[0] for path in json_paths)
+        for json_path, npz_path, metadata_path in zip(json_paths, npz_paths, metadata_paths):
             with open(json_path, 'r') as fp:
                 phrases = json.load(fp)
             if emb_type == 'dense':
                 emb = np.load(npz_path)['arr_0']
             else:
                 emb = scipy.sparse.load_npz(npz_path)
-            yield phrases, emb
-
+            if metadata:
+                with open(metadata_path, 'r') as fp:
+                    metadata = json.load(fp)
+                yield phrases, emb, metadata
+            else:
+                yield phrases, emb
 
     def archive(self):
         if self._mode == 'embed' or self._mode == 'embed_context':

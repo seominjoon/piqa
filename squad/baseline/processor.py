@@ -193,7 +193,9 @@ class Processor(base.Processor):
         phrases = tuple(_get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
         if self._emb_type == 'sparse':
             out = csc_matrix(out)
-        return example['cid'], phrases, out
+        metadata = {'context': context,
+                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+        return example['cid'], phrases, out, metadata
 
     def postprocess_context_batch(self, dataset, model_input, context_output):
         results = tuple(self.postprocess_context(dataset[idx], context_output[i])

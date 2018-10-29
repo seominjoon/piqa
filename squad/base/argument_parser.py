@@ -31,6 +31,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--question_emb_dir', type=str, default=None)
         self.add_argument('--context_emb_dir', type=str, default=None)
 
+        # Training arguments
         self.add_argument('--epochs', type=int, default=20)
         self.add_argument('--train_steps', type=int, default=0)
         self.add_argument('--eval_steps', type=int, default=1000)
@@ -41,6 +42,9 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--nlist', type=int, default=1)
         self.add_argument('--nprobe', type=int, default=1)
 
+        # Demo arguments
+        self.add_argument('--port', type=int, default=8080)
+
         # Other arguments
         self.add_argument('--draft', default=False, action='store_true')
         self.add_argument('--cuda', default=False, action='store_true')
@@ -49,6 +53,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--archive', default=False, action='store_true')
         self.add_argument('--dump_period', type=int, default=20)
         self.add_argument('--emb_type', type=str, default='dense', help='dense|sparse')
+        self.add_argument('--metadata', default=False, action='store_true')
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
