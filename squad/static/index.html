@@ -1,120 +1,128 @@
 <!DOCTYPE html>
 <html>
-	<meta charset="utf-8">
-	<title>PIQA Demo</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
-	<link rel="stylesheet" href="files/style.css">
+<meta charset="utf-8">
+<title>PIQA Demo</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+<link rel="stylesheet" href="files/style.css">
 
-	<script src="https://use.fontawesome.com/releases/v5.2.0/js/all.js"></script>
-	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
+<script src="https://use.fontawesome.com/releases/v5.2.0/js/all.js"></script>
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
 
-	<body>
-		<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
-			<a class="navbar-brand" href="./">PIQA Demo</a>
-			<ul class="navbar-nav">
-				<li class="nav-item"> <a class="nav-link" target="_blank" href="http://aclweb.org/anthology/D18-1052">Paper</a> </li>
-			</ul>
-		</nav>
-		<div class="container">
-			<div class="mt-4 text-center">
-			  <img src="files/pika.png" height="300" class="rounded" alt="pika" title="Ask me anything!"/>
-			</div>
+<body>
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+    <a class="navbar-brand" href="./">PIQA Demo</a>
+    <ul class="navbar-nav">
+        <li class="nav-item"><a class="nav-link" target="_blank" href="http://aclweb.org/anthology/D18-1052">Paper</a>
+        </li>
+    </ul>
+</nav>
+<div class="container">
+    <div class="mt-4 text-center">
+        <img src="files/pika.png" height="300" class="rounded" alt="pika" title="Ask me anything!"/>
+    </div>
 
-			<div class="input-group mb-1 mt-4">
-			  <input id="question" type="text" class="form-control" placeholder="Write question" aria-label="Write question">
-			  <div class="input-group-append">
-				 <button id="search" class="btn btn-secondary" type="button">
-					<i class="fa fa-search"></i>
-				  </button>
-			  </div>
-			</div>
+    <div class="input-group mb-1 mt-4">
+        <input id="question" type="text" class="form-control" placeholder="Write question" aria-label="Write question"
+               autofocus>
+        <div class="input-group-append">
+            <button id="search" class="btn btn-secondary" type="button">
+                <i class="fa fa-search"></i>
+            </button>
+        </div>
+    </div>
 
-			<div class="row">
-				<div id="ret-time" class="text-secondary small ml-2 col">Elapsed Time: </div>
-				<div class="custom-control custom-checkbox mr-3">
-				  <input type="checkbox" class="custom-control-input small" id="realtime_chk">
-				  <label class="custom-control-label small" for="realtime_chk">Real-time Search</label>
-				</div>
-			</div>
-			<hr/>
+    <div class="row">
+        <div id="ret-time" class="text-secondary small ml-2 col">Latency:</div>
+        <div class="custom-control custom-checkbox mr-3">
+            <input type="checkbox" class="custom-control-input small" id="realtime_chk">
+            <label class="custom-control-label small" for="realtime_chk">Real-time Search</label>
+        </div>
+    </div>
+    <hr/>
 
-			<div class="card">
-			  <ul id="ret-results" class="list-group list-group-flush">
-				<li class="list-group-item"></li>
-			  </ul>
-			</div>
-		</div>
+    <div class="card">
+        <ul id="ret-results" class="list-group list-group-flush">
+            <li class="list-group-item"></li>
+        </ul>
+    </div>
+</div>
 
-		<footer class="footer">
-		  <div class="container">
+<footer class="footer">
+    <div class="container">
 			<span class="text-muted">
 				<strong>Phrase-Indexed Question Answering: A New Challenge for Scalable Document Comprehension</strong><br/>
 				Demo page made by <a target="_blank" href="https://antest1.github.io/">Gyeongbok Lee</a>
 			</span>
-		  </div>
-		</footer>
+    </div>
+</footer>
 
 
-		<script>
-			var tout_id = 0;
-			$("#realtime_chk").prop('checked', true);
+<script>
+    var tout_id = 0;
+    $("#realtime_chk").prop('checked', false);
 
-			$("#question").bind("input", function() {
-				var query = $("#question").val();
-				clearTimeout(tout_id);
-				var is_real = $("#realtime_chk").is(":checked") == true;
-				if (is_real) {
-					if (query.trim().length > 0) {
-						tout_id = window.setTimeout(execute, 100, query);
-					} else {
-						init_result();
-					}
-				}
-			});
+    $("#question").bind("input", function () {
+        var query = $("#question").val();
+        clearTimeout(tout_id);
+        var is_real = $("#realtime_chk").is(":checked") == true;
+        if (is_real) {
+            if (query.trim().length > 0) {
+                tout_id = window.setTimeout(execute, 100, query);
+            } else {
+                init_result();
+            }
+        }
+    });
 
-			$("#search").click(function() {
-				var query = $("#question").val();
-				if (query.trim().length > 0) {
-					execute(query);
-				} else {
-					init_result();
-				}
-			});
+    $("#question").keypress(function (e) {
+        if (e.which == 13) {
+            $("#search").click();
+        }
+    });
 
-			function init_result() {
-				$("#ret-time").text("Elapsed time: ");
-				$("#ret-results").html("<li class=\"list-group-item\"></li>");
-			}
+    $("#search").click(function () {
+        var query = $("#question").val();
+        if (query.trim().length > 0) {
+            execute(query);
+        } else {
+            init_result();
+        }
+    });
 
-			function highlight(item) {
-				var text = item[0];
-				var start = item[1];
-				var end = item[2]-1;
-				new_text = text.split("");
-				new_text[start] = "<strong>" + new_text[start];
-				new_text[end] = new_text[end] + "</strong>";
-				return new_text.join("");
-			}
+    function init_result() {
+        $("#ret-time").text("Latency: ");
+        $("#ret-results").html("<li class=\"list-group-item\"></li>");
+    }
 
-			function execute(text) {
-				$("#ret-time").text("Elapsed time: ");
-				start_time = + new Date();
-				$.get("/api?query=" + encodeURIComponent(text), function(result) {
-					end_time = + new Date();
-					$("#ret-time").text("Elapsed time: " + (end_time - start_time) / 1000 + "s");
-					$("#ret-results").empty();
-					for (var i = 0; i < result.length; i++) {
-						$("#ret-results").append("<li class=\"list-group-item\"><div class=\"row\">"
-							+ "<div class=\"col-10\">" + highlight(result[i]) + "</div>"
-							+ "<div class=\"col-2 text-right\">" + result[i][3] + "</div>"
-							+ "</div></li>")
-					}
-				});
-			}
-		</script>
+    function highlight(item) {
+        var text = item[0];
+        var start = item[1];
+        var end = item[2] - 1;
+        new_text = text.split("");
+        new_text[start] = "<strong>" + new_text[start];
+        new_text[end] = new_text[end] + "</strong>";
+        return new_text.join("");
+    }
 
-	</body>
+    function execute(text) {
+        $("#ret-time").text("Latency: ");
+        start_time = +new Date();
+        $.get("/api?query=" + encodeURIComponent(text), function (result) {
+            end_time = +new Date();
+            $("#ret-time").text("Latency: " + (end_time - start_time) + "ms");
+            $("#ret-results").empty();
+            for (var i = 0; i < result.length; i++) {
+                $("#ret-results").append("<li class=\"list-group-item\"><div class=\"row\">"
+                    + "<div class=\"col-10\">" + highlight(result[i]) + "</div>"
+                    + "<div class=\"col-2 text-right\">" + result[i][3] + "</div>"
+                    + "</div></li>")
+            }
+        });
+    }
+</script>
+
+</body>
 
 </html>
