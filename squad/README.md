@@ -87,6 +87,8 @@ That was easy! But why is this not an *official evaluation*? Because we had a bi
 
 We need a strict evaluation method that enforces the independence between the encoders. We require 'split-encode-merge' pipeline to ensure this:
 
+![piqa_eval](figures/piqa_eval.png)
+
 where 'dev1.1.json*' does not contain the answers. A regular SQuAD v1.1 submission will correspond to uploading a model that replaces the black dotted box. A PI-SQuAD submission instead requires one to upload two encoders, document encoder and question encoder, that the replace orange boxes. They **must** be preceded by `split.py` and followed by `merge.py`. We describe the expected formats of `dev-v1.1-c.json`, `dev-v1.1-q.json`, `context_emb/` and `question_emb/`.
 
 `dev-v1.1-c.json` and `dev-v1.1-q.json`: `split.py` simply splts `dev-v1.1.json` into context-only and question-only json files.
