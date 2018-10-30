@@ -196,4 +196,4 @@ Please see the [sample submission worksheet][worksheet-elmo] for instructions on
 [elmo]: https://allennlp.org/elmo
 [squad]: https://stanford-qa.com
 [mipsqa]: https://github.com/google/mipsqa
-[worksheet-elmo]: #
+[worksheet-elmo]: https://worksheets.codalab.org/worksheets/0x58f20753fb784ffaa37877f777057b17/
