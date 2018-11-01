@@ -282,27 +282,22 @@ def serve(args):
     with torch.no_grad():
         model.eval()
         if args.mode == 'serve_demo':
-            from flask import Flask, request, jsonify
-            from flask_cors import CORS
-
-            from tornado.wsgi import WSGIContainer
-            from tornado.httpserver import HTTPServer
-            from tornado.ioloop import IOLoop
+            print('Loading phrase-vector pairs')
+            phrases = []
+            embs = []
+            results = []
+            for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
+                phrases.extend(cur_phrases)
+                embs.append(emb)
+                for span in metadata['answer_spans']:
+                    results.append([metadata['context'], span[0], span[1]])
+            print('%d phrase-vector pairs' % len(phrases))
 
             if args.emb_type == 'dense':
                 import faiss
-                print('Loading phrase-vector pairs')
-                d = 4 * args.hidden_size * args.num_heads
-                phrases = []
-                embs = []
-                results = []
-                for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
-                    phrases.extend(cur_phrases)
-                    embs.append(emb)
-                    for span in metadata['answer_spans']:
-                        results.append([metadata['context'], span[0], span[1]])
                 emb = np.concatenate(embs, 0)
 
+                d = 4 * args.hidden_size * args.num_heads
                 search_index = faiss.IndexFlatIP(d)  # Exact Search
 
                 if args.nlist != args.nprobe:
@@ -320,15 +315,6 @@ def serve(args):
             else:
                 # Very inefficient search for now... need to find a good sparse search library
                 assert args.emb_type == 'sparse'
-                print('Loading phrase-vector pairs')
-                phrases = []
-                embs = []
-                results = []
-                for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
-                    phrases.extend(cur_phrases)
-                    embs.append(emb)
-                    for span in metadata['answer_spans']:
-                        results.append([metadata['context'], span[0], span[1]])
                 emb_cat = scipy.sparse.vstack(embs)
 
                 def search(emb, k):
@@ -350,6 +336,13 @@ def serve(args):
                 return out
 
             # Demo server. Requires flask and tornado
+            from flask import Flask, request, jsonify
+            from flask_cors import CORS
+
+            from tornado.wsgi import WSGIContainer
+            from tornado.httpserver import HTTPServer
+            from tornado.ioloop import IOLoop
+
             app = Flask(__name__, static_url_path='/static')
 
             app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
