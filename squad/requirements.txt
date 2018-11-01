@@ -6,6 +6,7 @@ allennlp==0.6.1
 
 tqdm
 gensim
+
 faiss
 
 tornado

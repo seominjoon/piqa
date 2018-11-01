@@ -4,6 +4,7 @@ from collections import OrderedDict
 from pprint import pprint
 import importlib
 
+import scipy
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -313,22 +314,42 @@ def serve(args):
                 else:
                     search_index.add(emb)
 
-                def retrieve(question, k):
-                    example = {'question': question, 'id': 'real', 'idx': 0}
-                    dataset = (processor.preprocess(example), )
-                    loader = DataLoader(dataset, batch_size=1, collate_fn=processor.collate)
-                    batch = next(iter(loader))
-                    question_output = model.get_question(**batch)
-                    question_results = processor.postprocess_question_batch(dataset, batch, question_output)
-                    id_, emb = question_results[0]
-                    D, I = search_index.search(emb, k)
-                    out = [tuple(results[i]) + ('%.4r' % d.item(),) for d, i in zip(D[0], I[0])]
-                    return out
+                def search(emb, k):
+                    return search_index.search(emb, k)
+
             else:
-                raise NotImplementedError()
+                # Very inefficient search for now... need to find a good sparse search library
+                assert args.emb_type == 'sparse'
+                print('Loading phrase-vector pairs')
+                phrases = []
+                embs = []
+                results = []
+                for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
+                    phrases.extend(cur_phrases)
+                    embs.append(emb)
+                    for span in metadata['answer_spans']:
+                        results.append([metadata['context'], span[0], span[1]])
+                emb_cat = scipy.sparse.vstack(embs)
+
+                def search(emb, k):
+                    sim = np.array((emb_cat * emb.T).todense()).squeeze(1)
+                    I = sim.argsort()[-k:][::-1]
+                    D = sim[I]
+                    return [D], [I]
+
+            def retrieve(question, k):
+                example = {'question': question, 'id': 'real', 'idx': 0}
+                dataset = (processor.preprocess(example), )
+                loader = DataLoader(dataset, batch_size=1, collate_fn=processor.collate)
+                batch = next(iter(loader))
+                question_output = model.get_question(**batch)
+                question_results = processor.postprocess_question_batch(dataset, batch, question_output)
+                id_, emb = question_results[0]
+                D, I = search(emb, k)
+                out = [tuple(results[i]) + ('%.4r' % d.item(),) for d, i in zip(D[0], I[0])]
+                return out
 
             # Demo server. Requires flask and tornado
-
             app = Flask(__name__, static_url_path='/static')
 
             app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
@@ -352,7 +373,6 @@ def serve(args):
             http_server = HTTPServer(WSGIContainer(app))
             http_server.listen(args.port)
             IOLoop.instance().start()
-
 
 
 def main():
