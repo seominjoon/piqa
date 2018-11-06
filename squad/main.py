@@ -335,6 +335,14 @@ def serve(args):
                 out = [tuple(results[i]) + ('%.4r' % d.item(),) for d, i in zip(D[0], I[0])]
                 return out
 
+            if args.mem_info:
+                import psutil
+                import os
+                pid = os.getpid()
+                py = psutil.Process(pid)
+                info = py.memory_info()[0] / 2. ** 30
+                print('Memory Use: %.2f GB' % info)
+
             # Demo server. Requires flask and tornado
             from flask import Flask, request, jsonify
             from flask_cors import CORS

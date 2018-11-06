@@ -54,6 +54,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--dump_period', type=int, default=20)
         self.add_argument('--emb_type', type=str, default='dense', help='dense|sparse')
         self.add_argument('--metadata', default=False, action='store_true')
+        self.add_argument('--mem_info', default=False, action='store_true')
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
