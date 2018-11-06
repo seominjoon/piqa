@@ -27,8 +27,8 @@ class ArgumentParser(base.ArgumentParser):
         self.add_argument('--elmo', default=False, action='store_true')
         self.add_argument('--num_heads', type=int, default=1)
         self.add_argument('--max_pool', default=False, action='store_true')
-        self.add_argument('--agg', type=str, default='max', help='max|logsumexp')
         self.add_argument('--num_layers', type=int, default=1)
+        self.add_argument('--metric', type=str, default='ip', help='ip|l2')
 
         # Training arguments. Only valid during training
         self.add_argument('--dropout', type=float, default=0.2)

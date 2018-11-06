@@ -8,7 +8,9 @@ import sys
 import shutil
 
 import scipy.sparse
+import scipy.sparse.linalg
 import numpy as np
+import numpy.linalg
 
 
 def get_q2c(dataset):
@@ -21,7 +23,7 @@ def get_q2c(dataset):
     return q2c
 
 
-def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, progress=False):
+def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, metric='ip', progress=False):
     context_emb_dir, context_emb_ext = os.path.splitext(context_emb_path)
     question_emb_dir, question_emb_ext = os.path.splitext(question_emb_path)
     if context_emb_ext == '.zip':
@@ -59,14 +61,24 @@ def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, prog
             phrases = json.load(fp)
 
         if sparse:
-            sim = c_emb * q_emb.T
-            m = sim.max(1)
-            m = np.squeeze(np.array(m.todense()), 1)
+            if metric == 'ip':
+                sim = c_emb * q_emb.T
+                m = sim.max(1)
+                m = np.squeeze(np.array(m.todense()), 1)
+            elif metric == 'l1':
+                m = scipy.sparse.linalg.norm(c_emb - q_emb, ord=1, axis=1)
+            elif metric == 'l2':
+                m = scipy.sparse.linalg.norm(c_emb - q_emb, ord=2, axis=1)
         else:
             q_emb = q_emb['arr_0']
             c_emb = c_emb['arr_0']
-            sim = np.matmul(c_emb, q_emb.T)
-            m = sim.max(1)
+            if metric == 'ip':
+                sim = np.matmul(c_emb, q_emb.T)
+                m = sim.max(1)
+            elif metric == 'l1':
+                m = numpy.linalg.norm(c_emb - q_emb, ord=1, axis=1)
+            elif metric == 'l2':
+                m = numpy.linalg.norm(c_emb - q_emb, ord=2, axis=1)
 
         argmax = m.argmax(0)
         predictions[id_] = phrases[argmax]
@@ -88,6 +100,8 @@ if __name__ == '__main__':
     parser.add_argument('pred_path', help='Prediction json file path')
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='Whether the embeddings are scipy.sparse or pure numpy.')
+    parser.add_argument('--metric', type=str, default='ip',
+                        help='ip|l1|l2 (inner product or L1 or L2 distance)')
     parser.add_argument('--progress', default=False, action='store_true', help='Show progress bar. Requires `tqdm`.')
     args = parser.parse_args()
 
@@ -100,7 +114,7 @@ if __name__ == '__main__':
         dataset = dataset_json['data']
     q2c = get_q2c(dataset)
     predictions = get_predictions(args.context_emb_dir, args.question_emb_dir, q2c, sparse=args.sparse,
-                                  progress=args.progress)
+                                  metric=args.metric, progress=args.progress)
 
     with open(args.pred_path, 'w') as fp:
         json.dump(predictions, fp)
