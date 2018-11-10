@@ -4,7 +4,7 @@ from collections import OrderedDict
 from pprint import pprint
 import importlib
 
-import scipy
+import scipy.sparse
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -281,47 +281,84 @@ def serve(args):
 
     with torch.no_grad():
         model.eval()
-        if args.mode == 'serve_demo':
-            print('Loading phrase-vector pairs')
-            phrases = []
-            embs = []
-            results = []
-            for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
-                phrases.extend(cur_phrases)
-                embs.append(emb)
-                for span in metadata['answer_spans']:
-                    results.append([metadata['context'], span[0], span[1]])
-            print('%d phrase-vector pairs' % len(phrases))
 
+        if args.mode == 'serve_demo':
+            phrases = []
+            paras = []
+            results = []
+            embs = []
+            idxs = []
+            iterator = interface.context_load(metadata=True, emb_type=args.emb_type)
+            for _, (cur_phrases, each_emb, metadata) in zip(range(args.num_train_mats), iterator):
+                embs.append(each_emb)
+                phrases.extend(cur_phrases)
+                for span in metadata['answer_spans']:
+                    results.append([len(paras), span[0], span[1]])
+                    idxs.append(len(idxs))
+                paras.append(metadata['context'])
             if args.emb_type == 'dense':
                 import faiss
                 emb = np.concatenate(embs, 0)
 
                 d = 4 * args.hidden_size * args.num_heads
-                search_index = faiss.IndexFlatIP(d)  # Exact Search
+                if args.metric == 'ip':
+                    quantizer = faiss.IndexFlatIP(d)  # Exact Search
+                elif args.metric == 'l2':
+                    quantizer = faiss.IndexFlatL2(d)
+                else:
+                    raise ValueError()
 
                 if args.nlist != args.nprobe:
                     # Approximate Search. nlist > nprobe makes it faster and less accurate
-                    search_index = faiss.IndexIVFFlat(search_index, d, args.nlist, faiss.METRIC_INNER_PRODUCT)
+                    if args.bpv is None:
+                        if args.metric == 'ip':
+                            search_index = faiss.IndexIVFFlat(quantizer, d, args.nlist, faiss.METRIC_INNER_PRODUCT)
+                        elif args.metric == 'l2':
+                            search_index = faiss.IndexIVFFlat(quantizer, d, args.nlist)
+                        else:
+                            raise ValueError()
+                    else:
+                        assert args.metric == 'l2'  # only l2 is supported for product quantization
+                        search_index = faiss.IndexIVFPQ(quantizer, d, args.nlist, args.bpv, 8)
                     search_index.train(emb)
-                    search_index.add(emb)
-                    search_index.nprobe = args.nprobe
                 else:
-                    search_index.add(emb)
+                    search_index = quantizer
+
+                search_index.add(emb)
+                for cur_phrases, each_emb, metadata in iterator:
+                    phrases.extend(cur_phrases)
+                    for span in metadata['answer_spans']:
+                        results.append([len(paras), span[0], span[1]])
+                    paras.append(metadata['context'])
+                    search_index.add(each_emb)
+
+                if args.nlist != args.nprobe:
+                    search_index.nprobe = args.nprobe
 
                 def search(emb, k):
-                    return search_index.search(emb, k)
+                    D, I = search_index.search(emb, k)
+                    return D[0], I[0]
+
+            elif args.emb_type == 'sparse':
+                assert args.metric == 'l2'  # currently only l2 is supported (couldn't find a good ip library)
+                import pysparnn.cluster_index as ci
+
+                cp = ci.MultiClusterIndex(embs, idxs)
+
+                for cur_phrases, each_emb, metadata in iterator:
+                    phrases.extend(cur_phrases)
+                    for span in metadata['answer_spans']:
+                        results.append([len(paras), span[0], span[1]])
+                    paras.append(metadata['context'])
+                    for each_vec in each_emb:
+                        cp.insert(each_vec, len(idxs))
+                        idxs.append(len(idxs))
+
+                def search(emb, k):
+                    return zip(*[each[0] for each in cp.search(emb, k=k)])
 
             else:
-                # Very inefficient search for now... need to find a good sparse search library
-                assert args.emb_type == 'sparse'
-                emb_cat = scipy.sparse.vstack(embs)
-
-                def search(emb, k):
-                    sim = np.array((emb_cat * emb.T).todense()).squeeze(1)
-                    I = sim.argsort()[-k:][::-1]
-                    D = sim[I]
-                    return [D], [I]
+                raise ValueError()
 
             def retrieve(question, k):
                 example = {'question': question, 'id': 'real', 'idx': 0}
@@ -332,7 +369,8 @@ def serve(args):
                 question_results = processor.postprocess_question_batch(dataset, batch, question_output)
                 id_, emb = question_results[0]
                 D, I = search(emb, k)
-                out = [tuple(results[i]) + ('%.4r' % d.item(),) for d, i in zip(D[0], I[0])]
+                out = [(paras[results[i][0]], results[i][1], results[i][2], '%.4r' % d.item(),)
+                       for d, i in zip(D, I)]
                 return out
 
             if args.mem_info:
