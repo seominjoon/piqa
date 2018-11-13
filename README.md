@@ -3,9 +3,9 @@
 - This repository is still in alpha; things might change wildly before versioning starts (before EMNLP, 2 Nov 2018). 
 - Webpage with leaderboard and submission guideline are coming soon. For now, please consider reproducing the baseline models and running the official evaluation routine (below) to become familiar with the challenge format.
 - Much of the work and code is heavily influenced by our former [project][mipsqa] at Google AI.
-- Please create a new issue on this repository or contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]) for questions and suggestions.
-
-For citation, please use:
+- For paper-related inquiries, please contact [Minjoon Seo][minjoon] ([@seominjoon][minjoon-github]).
+- For code-related inquiries, please create a new issue or contact the admins ([@seominjoon][minjoon-github], [@jhyuklee][jhyuklee-github]).
+- For citation, please use:
  ```
 @inproceedings{seo2018phrase,
   title={Phrase-Indexed Question Answering: A New Challenge for Scalable Document Comprehension},
@@ -35,6 +35,7 @@ Note that it is also not so straightforward to strictly enforce the constraint o
 [paper]: https://arxiv.org/abs/1804.07726
 [minjoon]: https://seominjoon.github.io
 [minjoon-github]: https://github.com/seominjoon
+[jhyuklee-github]: https://github.com/jhyuklee
 [squad-train]: https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json
 [squad-dev]: https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json
 [squad-context]: https://nlp.cs.washington.edu/piqa/squad/dev-v1.1-context.json

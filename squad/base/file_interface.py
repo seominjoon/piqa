@@ -1,24 +1,29 @@
 import json
 import os
-import torch
+import shutil
 
+import torch
 import scipy.sparse
 import numpy as np
 import csv
 
 
 class FileInterface(object):
-    def __init__(self, save_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
+    def __init__(self, cuda, mode, save_dir, load_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
                  cache_path, dump_dir, train_path, test_path, draft, **kwargs):
+        self._cuda = cuda
+        self._mode = mode
         self._train_path = train_path
         self._test_path = test_path
         self._save_dir = save_dir
+        self._load_dir = load_dir
         self._report_path = report_path
         self._dump_dir = dump_dir
         self._pred_path = pred_path
-        self._question_emb_dir = question_emb_dir
-        self._context_emb_dir = context_emb_dir
+        self._question_emb_dir = os.path.splitext(question_emb_dir)[0]
+        self._context_emb_dir = os.path.splitext(context_emb_dir)[0]
         self._cache_path = cache_path
+        self._args_path = os.path.join(save_dir, 'args.json')
         self._draft = draft
         self._save = None
         self._load = None
@@ -38,13 +43,19 @@ class FileInterface(object):
             save_fn = self._save
         save_fn(filename)
 
-    def load(self, iteration, load_fn=None, session=None):
+    def save_args(self, args):
+        if not os.path.exists(self._save_dir):
+            os.makedirs(self._save_dir)
+        with open(self._args_path, 'w') as fp:
+            json.dump(args, fp)
+
+    def load(self, iteration='0', load_fn=None, session=None):
         if session is None:
-            session = self._save_dir
-        filename = os.path.join(session, str(iteration), 'model.pt')
-        dirname = os.path.dirname(filename)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
+            session = self._load_dir
+        if iteration == '0':
+            filename = session
+        else:
+            filename = os.path.join(session, str(iteration), 'model.pt')
         if load_fn is None:
             load_fn = self._load
         load_fn(filename)
@@ -81,14 +92,14 @@ class FileInterface(object):
     def question_emb(self, id_, emb, emb_type='dense'):
         if not os.path.exists(self._question_emb_dir):
             os.makedirs(self._question_emb_dir)
-        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez
+        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez_compressed
         path = os.path.join(self._question_emb_dir, '%s.npz' % id_)
         savez(path, emb)
 
-    def context_emb(self, id_, phrases, emb, emb_type='dense'):
+    def context_emb(self, id_, phrases, emb, metadata=None, emb_type='dense'):
         if not os.path.exists(self._context_emb_dir):
             os.makedirs(self._context_emb_dir)
-        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez
+        savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez_compressed
         emb_path = os.path.join(self._context_emb_dir, '%s.npz' % id_)
         json_path = os.path.join(self._context_emb_dir, '%s.json' % id_)
 
@@ -101,6 +112,40 @@ class FileInterface(object):
         else:
             with open(json_path, 'w') as fp:
                 json.dump(phrases, fp)
+
+        if metadata is not None:
+            metadata_path = os.path.join(self._context_emb_dir, '%s.metadata' % id_)
+            with open(metadata_path, 'w') as fp:
+                json.dump(metadata, fp)
+
+    def context_load(self, metadata=False, emb_type='dense'):
+        paths = os.listdir(self._context_emb_dir)
+        json_paths = tuple(os.path.join(self._context_emb_dir, path)
+                           for path in paths if os.path.splitext(path)[1] == '.json')
+        npz_paths = tuple('%s.npz' % os.path.splitext(path)[0] for path in json_paths)
+        metadata_paths = tuple('%s.metadata' % os.path.splitext(path)[0] for path in json_paths)
+        for json_path, npz_path, metadata_path in zip(json_paths, npz_paths, metadata_paths):
+            with open(json_path, 'r') as fp:
+                phrases = json.load(fp)
+            if emb_type == 'dense':
+                emb = np.load(npz_path)['arr_0']
+            else:
+                emb = scipy.sparse.load_npz(npz_path)
+            if metadata:
+                with open(metadata_path, 'r') as fp:
+                    metadata = json.load(fp)
+                yield phrases, emb, metadata
+            else:
+                yield phrases, emb
+
+    def archive(self):
+        if self._mode == 'embed' or self._mode == 'embed_context':
+            shutil.make_archive(self._context_emb_dir, 'zip', self._context_emb_dir)
+            shutil.rmtree(self._context_emb_dir)
+
+        if self._mode == 'embed' or self._mode == 'embed_question':
+            shutil.make_archive(self._question_emb_dir, 'zip', self._question_emb_dir)
+            shutil.rmtree(self._question_emb_dir)
 
     def cache(self, preprocess, args):
         if os.path.exists(self._cache_path):
@@ -119,7 +164,7 @@ class FileInterface(object):
     def bind(self, processor, model, optimizer=None):
         def load(filename, **kwargs):
             # filename = os.path.join(filename, 'model.pt')
-            state = torch.load(filename)
+            state = torch.load(filename, map_location=None if self._cuda else 'cpu')
             processor.load_state_dict(state['preprocessor'])
             model.load_state_dict(state['model'])
             if 'optimizer' in state and optimizer:

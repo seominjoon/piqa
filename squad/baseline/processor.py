@@ -104,9 +104,9 @@ class Processor(base.Processor):
         # assert max(self._word2idx_ext.values()) + 1 == self._glove_vocab_size, max(self._word2idx_ext.values()) + 1
 
     def state_dict(self):
-        out = {'word2idx': self._word2idx,
-               'word2idx_ext': self._word2idx_ext,
-               'char2idx': self._char2idx}
+        out = {'word2idx': self._word2idx_dict,
+               'word2idx_ext': self._word2idx_ext_dict,
+               'char2idx': self._char2idx_dict}
         return out
 
     def load_state_dict(self, in_):
@@ -193,7 +193,9 @@ class Processor(base.Processor):
         phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
         if self._emb_type == 'sparse':
             out = csc_matrix(out)
-        return example['cid'], phrases, out
+        metadata = {'context': context,
+                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+        return example['cid'], phrases, out, metadata
 
     def postprocess_context_batch(self, dataset, model_input, context_output):
         results = tuple(self.postprocess_context(dataset[idx], context_output[i])

@@ -31,18 +31,30 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--question_emb_dir', type=str, default=None)
         self.add_argument('--context_emb_dir', type=str, default=None)
 
+        # Training arguments
         self.add_argument('--epochs', type=int, default=20)
         self.add_argument('--train_steps', type=int, default=0)
         self.add_argument('--eval_steps', type=int, default=1000)
         self.add_argument('--eval_save_period', type=int, default=500)
         self.add_argument('--report_period', type=int, default=100)
 
+        # Faiss arguments
+        self.add_argument('--nlist', type=int, default=1)
+        self.add_argument('--nprobe', type=int, default=1)
+
+        # Demo arguments
+        self.add_argument('--port', type=int, default=8080)
+
         # Other arguments
         self.add_argument('--draft', default=False, action='store_true')
         self.add_argument('--cuda', default=False, action='store_true')
         self.add_argument('--preload', default=False, action='store_true')
         self.add_argument('--cache', default=False, action='store_true')
+        self.add_argument('--archive', default=False, action='store_true')
         self.add_argument('--dump_period', type=int, default=20)
+        self.add_argument('--emb_type', type=str, default='dense', help='dense|sparse')
+        self.add_argument('--metadata', default=False, action='store_true')
+        self.add_argument('--mem_info', default=False, action='store_true')
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
@@ -68,5 +80,9 @@ class ArgumentParser(argparse.ArgumentParser):
             args.pred_path = os.path.join(args.output_dir, 'pred.json')
         if args.cache_path is None:
             args.cache_path = os.path.join(args.output_dir, 'cache.b')
+
+        args.load_dir = os.path.abspath(args.load_dir)
+        args.context_emb_dir = os.path.abspath(args.context_emb_dir)
+        args.question_emb_dir = os.path.abspath(args.question_emb_dir)
 
         return args

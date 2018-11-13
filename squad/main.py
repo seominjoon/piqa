@@ -4,6 +4,7 @@ from collections import OrderedDict
 from pprint import pprint
 import importlib
 
+import scipy
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -81,6 +82,7 @@ def train(args):
     train_report, dev_report = None, None
 
     print('Training')
+    interface.save_args(args.__dict__)
     model.train()
     for epoch_idx in range(args.epochs):
         for i, train_batch in enumerate(train_loader):
@@ -152,8 +154,18 @@ def test(args):
     pprint(args.__dict__)
 
     interface = FileInterface(**args.__dict__)
-    processor = Processor(**args.__dict__)
+    # use cache for metadata
+    if args.cache:
+        out = interface.cache(preprocess, args) 
+        processor = out['processor']
+        processed_metadata = out['processed_metadata']
+    else:
+        processor = Processor(**args.__dict__)
+        metadata = interface.load_metadata()
+        processed_metadata = processor.process_metadata(metadata)
+
     model = Model(**args.__dict__).to(device)
+    model.init(processed_metadata)
     interface.bind(processor, model)
 
     interface.load(args.iteration, session=args.load_dir)
@@ -188,8 +200,18 @@ def embed(args):
     pprint(args.__dict__)
 
     interface = FileInterface(**args.__dict__)
+    # use cache for metadata
+    if args.cache:
+        out = interface.cache(preprocess, args) 
+        processor = out['processor']
+        processed_metadata = out['processed_metadata']
+    else:
+        processor = Processor(**args.__dict__)
+        metadata = interface.load_metadata()
+        processed_metadata = processor.process_metadata(metadata)
+
     model = Model(**args.__dict__).to(device)
-    processor = Processor(**args.__dict__)
+    model.init(processed_metadata)
     interface.bind(processor, model)
 
     interface.load(args.iteration, session=args.load_dir)
@@ -212,8 +234,10 @@ def embed(args):
                 context_output = model.get_context(**test_batch)
                 context_results = processor.postprocess_context_batch(test_dataset, test_batch, context_output)
 
-                for id_, phrases, matrix in context_results:
-                    interface.context_emb(id_, phrases, matrix, emb_type=args.emb_type)
+                for id_, phrases, matrix, metadata in context_results:
+                    if not args.metadata:
+                        metadata = None
+                    interface.context_emb(id_, phrases, matrix, metadata=metadata, emb_type=args.emb_type)
 
             if args.mode == 'embed' or args.mode == 'embed_question':
 
@@ -224,6 +248,132 @@ def embed(args):
                     interface.question_emb(id_, emb, emb_type=args.emb_type)
 
             print('[%d/%d]' % (batch_idx + 1, len(test_loader)))
+
+    if args.archive:
+        print('Archiving')
+        interface.archive()
+
+
+def serve(args):
+    # serve_demo: Load saved embeddings, serve question model. question in, results out.
+    # serve_question: only serve question model. question in, vector out.
+    # serve_context: only serve context model. context in, phrase-vector pairs out.
+    # serve: serve all three.
+    device = torch.device('cuda' if args.cuda else 'cpu')
+    pprint(args.__dict__)
+
+    interface = FileInterface(**args.__dict__)
+    # use cache for metadata
+    if args.cache:
+        out = interface.cache(preprocess, args)
+        processor = out['processor']
+        processed_metadata = out['processed_metadata']
+    else:
+        processor = Processor(**args.__dict__)
+        metadata = interface.load_metadata()
+        processed_metadata = processor.process_metadata(metadata)
+
+    model = Model(**args.__dict__).to(device)
+    model.init(processed_metadata)
+    interface.bind(processor, model)
+
+    interface.load(args.iteration, session=args.load_dir)
+
+    with torch.no_grad():
+        model.eval()
+        if args.mode == 'serve_demo':
+            print('Loading phrase-vector pairs')
+            phrases = []
+            embs = []
+            results = []
+            for cur_phrases, emb, metadata in interface.context_load(metadata=True, emb_type=args.emb_type):
+                phrases.extend(cur_phrases)
+                embs.append(emb)
+                for span in metadata['answer_spans']:
+                    results.append([metadata['context'], span[0], span[1]])
+            print('%d phrase-vector pairs' % len(phrases))
+
+            if args.emb_type == 'dense':
+                import faiss
+                emb = np.concatenate(embs, 0)
+
+                d = 4 * args.hidden_size * args.num_heads
+                search_index = faiss.IndexFlatIP(d)  # Exact Search
+
+                if args.nlist != args.nprobe:
+                    # Approximate Search. nlist > nprobe makes it faster and less accurate
+                    search_index = faiss.IndexIVFFlat(search_index, d, args.nlist, faiss.METRIC_INNER_PRODUCT)
+                    search_index.train(emb)
+                    search_index.add(emb)
+                    search_index.nprobe = args.nprobe
+                else:
+                    search_index.add(emb)
+
+                def search(emb, k):
+                    return search_index.search(emb, k)
+
+            else:
+                # Very inefficient search for now... need to find a good sparse search library
+                assert args.emb_type == 'sparse'
+                emb_cat = scipy.sparse.vstack(embs)
+
+                def search(emb, k):
+                    sim = np.array((emb_cat * emb.T).todense()).squeeze(1)
+                    I = sim.argsort()[-k:][::-1]
+                    D = sim[I]
+                    return [D], [I]
+
+            def retrieve(question, k):
+                example = {'question': question, 'id': 'real', 'idx': 0}
+                dataset = (processor.preprocess(example), )
+                loader = DataLoader(dataset, batch_size=1, collate_fn=processor.collate)
+                batch = next(iter(loader))
+                question_output = model.get_question(**batch)
+                question_results = processor.postprocess_question_batch(dataset, batch, question_output)
+                id_, emb = question_results[0]
+                D, I = search(emb, k)
+                out = [tuple(results[i]) + ('%.4r' % d.item(),) for d, i in zip(D[0], I[0])]
+                return out
+
+            if args.mem_info:
+                import psutil
+                import os
+                pid = os.getpid()
+                py = psutil.Process(pid)
+                info = py.memory_info()[0] / 2. ** 30
+                print('Memory Use: %.2f GB' % info)
+
+            # Demo server. Requires flask and tornado
+            from flask import Flask, request, jsonify
+            from flask_cors import CORS
+
+            from tornado.wsgi import WSGIContainer
+            from tornado.httpserver import HTTPServer
+            from tornado.ioloop import IOLoop
+
+            app = Flask(__name__, static_url_path='/static')
+
+            app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+            CORS(app)
+
+            @app.route('/')
+            def index():
+                return app.send_static_file('index.html')
+
+            @app.route('/files/<path:path>')
+            def static_files(path):
+                return app.send_static_file('files/' + path)
+
+            @app.route('/api', methods=['GET'])
+            def api():
+                query = request.args['query']
+                out = retrieve(query, 5)
+                return jsonify(out)
+
+            print('Starting server at %d' % args.port)
+            http_server = HTTPServer(WSGIContainer(app))
+            http_server.listen(args.port)
+            IOLoop.instance().start()
 
 
 def main():
@@ -236,6 +386,8 @@ def main():
         test(args)
     elif args.mode == 'embed' or args.mode == 'embed_context' or args.mode == 'embed_question':
         embed(args)
+    elif args.mode.startswith('serve'):
+        serve(args)
     else:
         raise Exception()
 

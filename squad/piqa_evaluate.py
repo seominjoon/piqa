@@ -8,6 +8,7 @@ import re
 import argparse
 import json
 import sys
+import shutil
 
 import scipy.sparse
 import numpy as np
@@ -91,7 +92,16 @@ def get_q2c(dataset):
     return q2c
 
 
-def get_predictions(context_emb_dir, question_emb_dir, q2c, sparse=False, progress=False):
+def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, progress=False):
+    context_emb_dir, context_emb_ext = os.path.splitext(context_emb_path)
+    question_emb_dir, question_emb_ext = os.path.splitext(question_emb_path)
+    if context_emb_ext == '.zip':
+        print('Extracting %s to %s' % (context_emb_path, context_emb_dir))
+        shutil.unpack_archive(context_emb_path, context_emb_dir)
+    if question_emb_ext == '.zip':
+        print('Extracting %s to %s' % (question_emb_path, question_emb_dir))
+        shutil.unpack_archive(question_emb_path, question_emb_dir)
+
     if progress:
         from tqdm import tqdm
     else:
@@ -103,6 +113,13 @@ def get_predictions(context_emb_dir, question_emb_dir, q2c, sparse=False, progre
         c_json_path = os.path.join(context_emb_dir, '%s.json' % cid)
 
         if not os.path.exists(q_emb_path):
+            print('Missing %s' % q_emb_path)
+            continue
+        if not os.path.exists(c_emb_path):
+            print('Missing %s' % c_emb_path)
+            continue
+        if not os.path.exists(c_json_path):
+            print('Missing %s' % c_json_path)
             continue
 
         load = scipy.sparse.load_npz if sparse else np.load
@@ -128,6 +145,11 @@ def get_predictions(context_emb_dir, question_emb_dir, q2c, sparse=False, progre
     # Dump piqa_pred
     # with open('test/piqa_pred.json', 'w') as f:
     #     f.write(json.dumps(predictions))
+
+    if context_emb_ext == '.zip':
+        shutil.rmtree(context_emb_dir)
+    if question_emb_ext == '.zip':
+        shutil.rmtree(question_emb_dir)
 
     return predictions
 

@@ -184,9 +184,9 @@ class Model(base.Model):
                  max_ans_len=7,
                  elmo=False,
                  max_pool=False,
-                 agg='max',
                  num_layers=1,
                  glove_cpu=False,
+                 metric='ip',
                  **kwargs):
         super(Model, self).__init__()
         self.embedding = Embedding(char_vocab_size, glove_vocab_size, word_vocab_size, embed_size, dropout,
@@ -198,12 +198,12 @@ class Model(base.Model):
         question_input_size = word_size
         self.context_start = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers)
         self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers)
-        self.agg = agg
         self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool)
         self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool)
         self.softmax = nn.Softmax(dim=1)
         self.max_ans_len = max_ans_len
         self.linear = nn.Linear(word_size, 1)
+        self.metric = metric
 
     def forward(self,
                 context_char_idxs,
@@ -235,6 +235,10 @@ class Model(base.Model):
 
         logits1 = torch.sum(x1 * q1.unsqueeze(1), 2) + mx
         logits2 = torch.sum(x2 * q2.unsqueeze(1), 2) + mx
+
+        if self.metric == 'l2':
+            logits1 += -0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+            logits2 += -0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
