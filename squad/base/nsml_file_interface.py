@@ -34,6 +34,7 @@ class FileInterface(base.file_interface.FileInterface):
 
     def report(self, **kwargs):
         nsml.report(**kwargs)
+        super(FileInterface, self).report(**kwargs)
         return ', '.join('%s=%.5r' % (s, r) for s, r in kwargs.items())
 
     def cache(self, preprocess, args, **kwargs):
