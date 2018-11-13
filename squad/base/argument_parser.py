@@ -38,9 +38,12 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--eval_save_period', type=int, default=500)
         self.add_argument('--report_period', type=int, default=100)
 
-        # Faiss arguments
+        # Similarity search (faiss, pysparnn) arguments
+        self.add_argument('--metric', type=str, default='ip', help='ip|l2')
         self.add_argument('--nlist', type=int, default=1)
         self.add_argument('--nprobe', type=int, default=1)
+        self.add_argument('--bpv', type=int, default=None, help='bytes per vector (e.g. 8)')
+        self.add_argument('--num_train_mats', type=int, default=100)
 
         # Demo arguments
         self.add_argument('--port', type=int, default=8080)

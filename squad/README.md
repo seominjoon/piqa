@@ -169,9 +169,9 @@ python evaluate.py $SQUAD_DEV_PATH $PRED_PATH
 ```
 
 ### 3. Demo
-Demo uses dumped context embeddings. We need to make on change: when encoding document (context), give `--metadata` flag to output additional necessary data for demo:
+Demo uses dumped context embeddings. We need to make one change: when encoding document (context), give `--metadata` flag to output additional necessary data for demo:
 ```bash
-python main.py baseline --cuda --mode embed_context --load_dir $OUTPUT_DIR/save/XXXX/model.pt --test_path $SQUAD_DEV_CONTEXT_PATH --context_emb_dir $CONTEXT_EMB_DIR
+python main.py baseline --cuda --mode embed_context --load_dir $OUTPUT_DIR/save/XXXX/model.pt --test_path $SQUAD_DEV_CONTEXT_PATH --context_emb_dir $CONTEXT_EMB_DIR --metadata
 ```
 
 Then run the demo by:
@@ -179,7 +179,14 @@ Then run the demo by:
 python main.py baseline --mode serve_demo --load_dir $OUTPUT_DIR/save/XXXX/model.pt --context_emb_dir $CONTEXT_EMB_DIR --port 8080
 ```
 
-This will serve the demo on localhost at port 8080. Enjoy!
+This will serve the demo on localhost at port 8080. Note that this is *exact search without compression* 
+(i.e. it can take a lot of time with a lot of RAM usage). 
+For time- and memory-efficient similarity search, additionally give following flags:
+```bash
+--nlist 100 --nprobe 10 --bpv 128
+```
+`--nlist` is number of clusters, and `--nprobe` is number of clusters you peek into (so `nlist` > `nprobe` makes it faster but approximation)
+`--bpv` is bytes per vector. 512D vector takes 2 KB, so `--bpv 128` compresses the size by 16-fold.
 
 
 ## Submission
