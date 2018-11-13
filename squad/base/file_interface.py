@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import shutil
 
 import torch
@@ -118,8 +119,10 @@ class FileInterface(object):
             with open(metadata_path, 'w') as fp:
                 json.dump(metadata, fp)
 
-    def context_load(self, metadata=False, emb_type='dense'):
+    def context_load(self, metadata=False, emb_type='dense', shuffle=True):
         paths = os.listdir(self._context_emb_dir)
+        if shuffle:
+            random.shuffle(paths)
         json_paths = tuple(os.path.join(self._context_emb_dir, path)
                            for path in paths if os.path.splitext(path)[1] == '.json')
         npz_paths = tuple('%s.npz' % os.path.splitext(path)[0] for path in json_paths)
