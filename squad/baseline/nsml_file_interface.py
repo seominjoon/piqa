@@ -8,7 +8,7 @@ import base.nsml_file_interface
 
 class FileInterface(base.nsml_file_interface.FileInterface):
     def __init__(self, glove_dir, glove_size, elmo_options_file, elmo_weights_file, **kwargs):
-        glove_dir = '/static/glove_squad'
+        glove_dir = '/static/glove'
         elmo_options_file = '/static/elmo/options.json'
         elmo_weights_file = '/static/elmo/weights.hdf5'
         self._glove_dir = glove_dir
