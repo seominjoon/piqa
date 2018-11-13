@@ -7,7 +7,7 @@ import base.file_interface
 
 
 class FileInterface(base.file_interface.FileInterface):
-    def __init__(self, draft, **kwargs):
+    def __init__(self, **kwargs):
         train_path = os.path.join(nsml.DATASET_PATH, 'train', 'train-v1.1.json')
         test_path = os.path.join(nsml.DATASET_PATH, 'train', 'dev-v1.1.json')
         save_dir = None
@@ -18,12 +18,6 @@ class FileInterface(base.file_interface.FileInterface):
         context_emb_dir = './context_emb/'
         cache_path = './preprocess.pt'
 
-        glove_dir = '/static/glove_squad'
-        # elmo_options_file = 'https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json'
-        # elmo_weights_file = 'https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5'
-        elmo_options_file = '/static/elmo/options.json'
-        elmo_weights_file = '/static/elmo/weights.hdf5'
-
         super(FileInterface, self).__init__(save_dir,
                                             report_path,
                                             pred_path,
@@ -33,7 +27,7 @@ class FileInterface(base.file_interface.FileInterface):
                                             dump_dir,
                                             train_path,
                                             test_path,
-                                            draft)
+                                            **kwargs)
 
     def _bind(self, save=None, load=None, infer=None):
         nsml.bind(save=save, load=load, infer=infer)
@@ -41,7 +35,7 @@ class FileInterface(base.file_interface.FileInterface):
     def save(self, iteration, save_fn=None):
         nsml.save(iteration, save_fn=save_fn)
 
-    def load(self, iteration, load_fn=None, session=None):
+    def load(self, iteration='0', load_fn=None, session=None):
         nsml.load(iteration, load_fn=load_fn, session=session)
 
     def report(self, **kwargs):
