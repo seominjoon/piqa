@@ -73,7 +73,7 @@ def train(args):
     model = Model(**args.__dict__).to(device)
     model.init(processed_metadata)
 
-    loss_model = Loss().to(device)
+    loss_model = Loss(**args.__dict__).to(device)
     optimizer = torch.optim.Adam(p for p in model.parameters() if p.requires_grad)
 
     interface.bind(processor, model, optimizer=optimizer)

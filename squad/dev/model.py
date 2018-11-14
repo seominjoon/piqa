@@ -103,6 +103,7 @@ class Model(baseline.Model):
                  max_pool=False,
                  agg='max',
                  num_layers=1,
+                 gen_disc_ratio=0.0,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -131,6 +132,9 @@ class Model(baseline.Model):
                                                sparse_activation=sparse_activation, max_pool=max_pool)
         self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
                                              sparse_activation=sparse_activation, max_pool=max_pool)
+        self.gen_disc_ratio = gen_disc_ratio
+        if gen_disc_ratio > 0.0:
+            self.decoder = Decoder(2 * hidden_size * num_heads, glove_vocab_size, embed_size, num_layers, dropout)
 
     def forward(self,
                 context_char_idxs,
@@ -180,22 +184,35 @@ class Model(baseline.Model):
         _, yp1 = prob.max(2)[0].max(1)
         _, yp2 = prob.max(1)[0].max(1)
 
-        return {'logits1': logits1,
-                'logits2': logits2,
-                'yp1': yp1,
-                'yp2': yp2,
-                'x1': x1,
-                'x2': x2,
-                'q1': q1,
-                'q2': q2,
-                'xs1': xs1,
-                'xs2': xs2,
-                'xsi1': context_glove_idxs,
-                'xsi2': context_glove_idxs,
-                'qs1': qs1,
-                'qs2': qs2,
-                'qsi1': question_glove_idxs,
-                'qsi2': question_glove_idxs}
+        return_ = {'logits1': logits1,
+                   'logits2': logits2,
+                   'yp1': yp1,
+                   'yp2': yp2,
+                   'x1': x1,
+                   'x2': x2,
+                   'q1': q1,
+                   'q2': q2,
+                   'xs1': xs1,
+                   'xs2': xs2,
+                   'xsi1': context_glove_idxs,
+                   'xsi2': context_glove_idxs,
+                   'qs1': qs1,
+                   'qs2': qs2,
+                   'qsi1': question_glove_idxs,
+                   'qsi2': question_glove_idxs}
+
+        if self.gen_disc_ratio > 0.0:
+            answer_word_starts = kwargs['answer_word_starts']
+            answer_word_ends = kwargs['answer_word_ends']
+            eye = torch.eye(context_glove_idxs.size(1))
+            init1 = torch.embedding(eye, answer_word_starts[:, 0]).unsqueeze(1).matmul(x1).squeeze(1)
+            init2 = torch.embedding(eye, answer_word_ends[:, 0]).unsqueeze(1).matmul(x2).squeeze(1)
+            decoder_logits1 = self.decoder(init1, question_glove_idxs=question_glove_idxs)
+            decoder_logits2 = self.decoder(init2, question_glove_idxs=question_glove_idxs)
+            return_['decoder_logits1'] = decoder_logits1
+            return_['decoder_logits2'] = decoder_logits2
+
+        return return_
 
     def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
         l = (context_glove_idxs > 0).sum(1)
@@ -259,5 +276,47 @@ class Model(baseline.Model):
         return out
 
 
+class Decoder(nn.Module):
+    def __init__(self, hidden_size, vocab_size, embed_size, num_layers, dropout):
+        super(Decoder, self).__init__()
+        self.vocab_size = vocab_size
+        self.num_layers = num_layers
+        self.embedding = nn.Embedding(vocab_size, embed_size)
+        self.gru = nn.GRU(embed_size, hidden_size, num_layers=num_layers, batch_first=True, dropout=dropout)
+        self.dropout = nn.Dropout(p=dropout)
+        self.proj = nn.Linear(hidden_size, vocab_size)
+        self.start = nn.Parameter(torch.randn(embed_size))
+
+    def forward(self, init, question_glove_idxs=None):
+        # Test time; slow for-loop RNN decoding
+        if question_glove_idxs is None:
+            raise NotImplementedError()
+        # Training time; use efficient cudnn RNN
+        else:
+            targets = self.embedding(question_glove_idxs)
+            inputs = torch.cat([self.start.unsqueeze(0).unsqueeze(0).repeat(question_glove_idxs.size(0), 1, 1),
+                                targets[:, :-1, :]], 1)
+            outputs, _ = self.gru(inputs, init.unsqueeze(0).repeat(self.num_layers, 1, 1))
+            logits = self.proj(outputs)
+
+        return logits
+
+
 class Loss(baseline.Loss):
-    pass
+    def __init__(self, gen_disc_ratio, **kwargs):
+        super(Loss, self).__init__(**kwargs)
+        self.gen_disc_ratio = gen_disc_ratio
+
+    def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
+                decoder_logits1=None, decoder_logits2=None, **kwargs):
+        loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
+        if decoder_logits1 is None:
+            return loss
+        decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
+                                 question_glove_idxs.view(-1))
+        decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
+                                 question_glove_idxs.view(-1))
+        decoder_loss = decoder_loss1 + decoder_loss2
+        loss += self.gen_disc_ratio * decoder_loss
+
+        return loss
