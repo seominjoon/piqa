@@ -156,7 +156,7 @@ def test(args):
     interface = FileInterface(**args.__dict__)
     # use cache for metadata
     if args.cache:
-        out = interface.cache(preprocess, args) 
+        out = interface.cache(preprocess, args)
         processor = out['processor']
         processed_metadata = out['processed_metadata']
     else:
@@ -202,7 +202,7 @@ def embed(args):
     interface = FileInterface(**args.__dict__)
     # use cache for metadata
     if args.cache:
-        out = interface.cache(preprocess, args) 
+        out = interface.cache(preprocess, args)
         processor = out['processor']
         processed_metadata = out['processed_metadata']
     else:
@@ -343,7 +343,8 @@ def serve(args):
                 assert args.metric == 'l2'  # currently only l2 is supported (couldn't find a good ip library)
                 import pysparnn.cluster_index as ci
 
-                cp = ci.MultiClusterIndex(embs, idxs)
+                emb = scipy.sparse.vstack(embs)
+                cp = ci.MultiClusterIndex(emb, idxs)
 
                 for cur_phrases, each_emb, metadata in iterator:
                     phrases.extend(cur_phrases)
@@ -355,14 +356,14 @@ def serve(args):
                         idxs.append(len(idxs))
 
                 def search(emb, k):
-                    return zip(*[each[0] for each in cp.search(emb, k=k)])
+                    return zip(*[[each[0][0], int(each[0][1])] for each in cp.search(emb, k=k)])
 
             else:
                 raise ValueError()
 
             def retrieve(question, k):
                 example = {'question': question, 'id': 'real', 'idx': 0}
-                dataset = (processor.preprocess(example), )
+                dataset = (processor.preprocess(example),)
                 loader = DataLoader(dataset, batch_size=1, collate_fn=processor.collate)
                 batch = next(iter(loader))
                 question_output = model.get_question(**batch)

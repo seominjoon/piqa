@@ -1,4 +1,4 @@
-from scipy.sparse import csc_matrix, hstack
+from scipy.sparse import csr_matrix, hstack
 import numpy as np
 
 import baseline
@@ -13,18 +13,20 @@ class Processor(baseline.Processor):
         context_spans = example['context_spans']
         phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
         if self._emb_type == 'sparse' or sparse_ is not None:
-            out = csc_matrix(out)
+            out = csr_matrix(out)
             if sparse_ is not None:
                 idx, val, max_ = sparse_
                 sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
                 out = hstack([out, sparse_tensor.scipy()])
-        return example['cid'], phrases, out
+        metadata = {'context': context,
+                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+        return example['cid'], phrases, out, metadata
 
     def postprocess_question(self, example, question_output):
         dense, sparse = question_output
         out = dense.cpu().numpy()
         if self._emb_type == 'sparse' or sparse is not None:
-            out = csc_matrix(out)
+            out = csr_matrix(out)
             if sparse is not None:
                 idx, val, max_ = sparse
                 sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
@@ -47,4 +49,4 @@ class SparseTensor(object):
         row = np.tile(np.expand_dims(range(self.idx.shape[0]), 1), [1, self.idx.shape[1]]).flatten()
         data = self.val.flatten()
         shape = None if self.max is None else [self.idx.shape[0], self.max]
-        return csc_matrix((data, (row, col)), shape=shape)
+        return csr_matrix((data, (row, col)), shape=shape)
