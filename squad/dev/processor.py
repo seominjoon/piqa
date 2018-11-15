@@ -13,7 +13,7 @@ class Processor(baseline.Processor):
         context_spans = example['context_spans']
         phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
         if self._emb_type == 'sparse' or sparse_ is not None:
-            out = csc_matrix(out)
+            out = csr_matrix(out)
             if sparse_ is not None:
                 idx, val, max_ = sparse_
                 sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
