@@ -297,9 +297,10 @@ class Decoder(nn.Module):
             targets = self.embedding(question_idxs)
             inputs = torch.cat([self.start.unsqueeze(0).unsqueeze(0).repeat(question_idxs.size(0), 1, 1),
                                 targets[:, :-1, :]], 1)
-            inputs = self.dropout(inputs)
+            # inputs = self.dropout(inputs)
             outputs, _ = self.gru(inputs, init.unsqueeze(0).repeat(self.num_layers, 1, 1))
             outputs = self.proj(outputs)
+
             logits = outputs.view(-1, outputs.size(2)).matmul(self.embedding.weight.t()).view(outputs.size(0),
                                                                                               outputs.size(1), -1)
 
