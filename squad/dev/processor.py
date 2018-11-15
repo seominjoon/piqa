@@ -1,4 +1,4 @@
-from scipy.sparse import csc_matrix, hstack
+from scipy.sparse import csr_matrix, hstack
 import numpy as np
 
 import baseline
@@ -26,7 +26,7 @@ class Processor(baseline.Processor):
         dense, sparse = question_output
         out = dense.cpu().numpy()
         if self._emb_type == 'sparse' or sparse is not None:
-            out = csc_matrix(out)
+            out = csr_matrix(out)
             if sparse is not None:
                 idx, val, max_ = sparse
                 sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
@@ -49,4 +49,4 @@ class SparseTensor(object):
         row = np.tile(np.expand_dims(range(self.idx.shape[0]), 1), [1, self.idx.shape[1]]).flatten()
         data = self.val.flatten()
         shape = None if self.max is None else [self.idx.shape[0], self.max]
-        return csc_matrix((data, (row, col)), shape=shape)
+        return csr_matrix((data, (row, col)), shape=shape)
