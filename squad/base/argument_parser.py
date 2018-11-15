@@ -11,7 +11,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('model', type=str)
 
         self.add_argument('--mode', type=str, default='train')
-        self.add_argument('--iteration', type=str, default='0')
+        self.add_argument('--iteration', type=str, default='1')
         self.add_argument('--pause', type=int, default=0)  # ignore this argument.
 
         # Data (input) paths

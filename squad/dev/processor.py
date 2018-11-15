@@ -18,7 +18,9 @@ class Processor(baseline.Processor):
                 idx, val, max_ = sparse_
                 sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
                 out = hstack([out, sparse_tensor.scipy()])
-        return example['cid'], phrases, out
+        metadata = {'context': context,
+                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+        return example['cid'], phrases, out, metadata
 
     def postprocess_question(self, example, question_output):
         dense, sparse = question_output
