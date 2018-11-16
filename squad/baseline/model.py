@@ -162,8 +162,7 @@ class ContextBoundary(nn.Module):
 
 
 class QuestionBoundary(ContextBoundary):
-    def __init__(self, input_size, hidden_size, dropout, num_heads, num_layers=1,
-                 max_pool=False, normalize=False):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, num_layers=1, max_pool=False, normalize=False):
         # No need to normalize question
         super(QuestionBoundary, self).__init__(input_size, hidden_size, dropout, num_heads, identity=False,
                                                num_layers=num_layers)

@@ -34,17 +34,16 @@ class SelfSeqSparse(nn.Module):
 
 
 class ContextBoundary(baseline.model.ContextBoundary):
-    def __init__(self, input_size, hidden_size, dropout, num_heads, identity=True, sparse=False,
-                 sparse_activation='relu', num_layers=1):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, identity=True, num_layers=1, normalize=False,
+                 sparse=False, sparse_activation='relu'):
         super(ContextBoundary, self).__init__(input_size,
                                               hidden_size,
                                               dropout,
                                               num_heads,
                                               identity=identity,
-                                              num_layers=num_layers)
-        self.sparse = None
-        if sparse:
-            self.sparse = SelfSeqSparse(hidden_size * 2, hidden_size, dropout, sparse_activation)
+                                              num_layers=num_layers,
+                                              normalize=normalize)
+        self.sparse = SelfSeqSparse(hidden_size * 2, hidden_size, dropout, sparse_activation) if sparse else None
 
     def forward(self, x, m):
         modules = dict(self.named_children())
@@ -57,21 +56,31 @@ class ContextBoundary(baseline.model.ContextBoundary):
             atts.append(a['value'])
 
         dense = torch.cat(atts, 2)
+        sparse = self.sparse(x, m) if self.sparse is not None else None
 
-        sparse = None
-        if self.sparse is not None:
-            sparse = self.sparse(x, m)
+        if self.normalize:
+            dense_norm = dense.norm(p=2, dim=2, keepdim=True)
+            if sparse['value'] is None:
+                norm = dense_norm
+            else:
+                sparse_norm = sparse['value'].norm(p=2, dim=2, keepdim=True)
+                norm = (dense_norm ** dense_norm + sparse_norm ** sparse_norm) ** 0.5
+                sparse['value'] /= norm
+            dense /= norm
+
         return {'dense': dense, 'sparse': sparse['value'] if sparse is not None else None,
                 'key': sparse['key'] if sparse is not None else None,
                 'query': sparse['query'] if sparse is not None else None}
 
 
 class QuestionBoundary(ContextBoundary):
-    def __init__(self, input_size, hidden_size, dropout, num_heads, sparse=False, sparse_activation='relu',
-                 max_pool=False):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, num_layers=1, max_pool=False, normalize=False,
+                 sparse=False, sparse_activation='relu'):
         super(QuestionBoundary, self).__init__(input_size, hidden_size, dropout, num_heads, identity=False,
+                                               num_layers=num_layers,
                                                sparse=sparse, sparse_activation=sparse_activation)
         self.max_pool = max_pool
+        self.normalize_ = normalize
 
     def forward(self, x, m):
         d = super().forward(x, m)
@@ -81,6 +90,17 @@ class QuestionBoundary(ContextBoundary):
         else:
             dense = d['dense'][:, 0, :]
             sparse = d['sparse'] if d['sparse'] is None else d['sparse'][:, 0, :]
+
+        if self.normalize_:
+            dense_norm = dense.norm(p=2, dim=1, keepdim=True)
+            if sparse['value'] is None:
+                norm = dense_norm
+            else:
+                sparse_norm = sparse['value'].norm(p=2, dim=1, keepdim=True)
+                norm = (dense_norm ** dense_norm + sparse_norm ** sparse_norm) ** 0.5
+                sparse['value'] /= norm
+            dense /= norm
+
         return {'dense': dense, 'sparse': sparse}
 
 
@@ -123,16 +143,21 @@ class Model(baseline.Model):
         word_size = self.embedding.output_size
         context_input_size = word_size
         question_input_size = word_size
+        normalize = self.metric == 'cosine'
         self.sparse = sparse
         self.dense = dense
         self.context_start = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
-                                             sparse_activation=sparse_activation, num_layers=num_layers)
+                                             sparse_activation=sparse_activation, num_layers=num_layers,
+                                             normalize=normalize)
         self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
-                                           sparse_activation=sparse_activation, num_layers=num_layers)
+                                           sparse_activation=sparse_activation, num_layers=num_layers,
+                                           normalize=normalize)
         self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
-                                               sparse_activation=sparse_activation, max_pool=max_pool)
+                                               sparse_activation=sparse_activation, max_pool=max_pool,
+                                               normalize=normalize)
         self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
-                                             sparse_activation=sparse_activation, max_pool=max_pool)
+                                             sparse_activation=sparse_activation, max_pool=max_pool,
+                                             normalize=normalize)
         self.gen_disc_ratio = gen_disc_ratio
         if gen_disc_ratio > 0.0:
             self.decoder = Decoder(self.embedding.glove_embedding.embedding,
@@ -168,6 +193,8 @@ class Model(baseline.Model):
         hd2 = self.context_end(x, mx)
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
+
+        assert self.metric in ('ip', 'cosine')
 
         logits1, logits2 = 0.0, 0.0
         if self.dense:
@@ -298,8 +325,9 @@ class Decoder(nn.Module):
             targets = self.embedding(question_idxs)
             inputs = torch.cat([self.start.unsqueeze(0).unsqueeze(0).repeat(question_idxs.size(0), 1, 1),
                                 targets[:, :-1, :]], 1)
-            # inputs = self.dropout(inputs)
+            inputs = self.dropout(inputs)
             outputs, _ = self.gru(inputs, init.unsqueeze(0).repeat(self.num_layers, 1, 1))
+            outputs = self.dropout(outputs)
             outputs = self.proj(outputs)
 
             logits = outputs.view(-1, outputs.size(2)).matmul(self.embedding.weight.t()).view(outputs.size(0),
