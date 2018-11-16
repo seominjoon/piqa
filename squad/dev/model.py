@@ -352,8 +352,8 @@ class Loss(baseline.Loss):
         decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
                                  question_glove_idxs.view(-1))
         decoder_loss = decoder_loss1 + decoder_loss2
-        log2 = torch.log(torch.tensor(2.0))
-        step = torch.tensor(step).float()
+        log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
+        step = torch.tensor(step).to(decoder_loss.device).float()
         cf = self.gen_disc_ratio * torch.exp(-log2 * step / self.loss_ratio_hl)
         loss += cf * decoder_loss
 
