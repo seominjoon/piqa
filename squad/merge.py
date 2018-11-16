@@ -65,20 +65,36 @@ def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, metr
                 sim = c_emb * q_emb.T
                 m = sim.max(1)
                 m = np.squeeze(np.array(m.todense()), 1)
+            elif metric == 'cosine':
+                c_emb = c_emb / scipy.sparse.linalg.norm(c_emb, ord=2, axis=1)
+                q_emb = q_emb / scipy.sparse.linalg.norm(q_emb, ord=2, axis=1)
+                sim = c_emb * q_emb.T
+                m = sim.max(1)
+                m = np.squeeze(np.array(m.todense()), 1)
             elif metric == 'l1':
                 m = scipy.sparse.linalg.norm(c_emb - q_emb, ord=1, axis=1)
             elif metric == 'l2':
                 m = scipy.sparse.linalg.norm(c_emb - q_emb, ord=2, axis=1)
+            else:
+                raise ValueError(metric)
         else:
             q_emb = q_emb['arr_0']
             c_emb = c_emb['arr_0']
             if metric == 'ip':
+                sim = np.matmul(c_emb, q_emb.T)
+                print(c_emb.shape, q_emb.shape)
+                m = sim.max(1)
+            elif metric == 'cosine':
+                c_emb = c_emb / numpy.linalg.norm(c_emb, ord=2, axis=1, keepdims=True)
+                q_emb = q_emb / numpy.linalg.norm(q_emb, ord=2, axis=0, keepdims=True)
                 sim = np.matmul(c_emb, q_emb.T)
                 m = sim.max(1)
             elif metric == 'l1':
                 m = numpy.linalg.norm(c_emb - q_emb, ord=1, axis=1)
             elif metric == 'l2':
                 m = numpy.linalg.norm(c_emb - q_emb, ord=2, axis=1)
+            else:
+                raise ValueError(metric)
 
         argmax = m.argmax(0)
         predictions[id_] = phrases[argmax]
@@ -101,7 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='Whether the embeddings are scipy.sparse or pure numpy.')
     parser.add_argument('--metric', type=str, default='ip',
-                        help='ip|l1|l2 (inner product or L1 or L2 distance)')
+                        help='ip|l1|l2|cosine (inner product or L1 or L2 or cosine distance)')
     parser.add_argument('--progress', default=False, action='store_true', help='Show progress bar. Requires `tqdm`.')
     args = parser.parse_args()
 

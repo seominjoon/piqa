@@ -118,7 +118,8 @@ class Model(baseline.Model):
                                     elmo_weights_file=elmo_weights_file,
                                     max_pool=max_pool,
                                     agg=agg,
-                                    num_layers=num_layers)
+                                    num_layers=num_layers,
+                                    **kwargs)
         word_size = self.embedding.output_size
         context_input_size = word_size
         question_input_size = word_size
@@ -262,7 +263,7 @@ class Model(baseline.Model):
         q1, qs1, qsi1 = qd1['dense'], qd1['sparse'], question_glove_idxs
         qd2 = self.question_end(q, mq)
         q2, qs2, qsi2 = qd2['dense'], qd2['sparse'], question_glove_idxs
-        dense_list = list(torch.cat([q1, q2], 1))
+        dense_list = list(torch.cat([q1, q2], 1).unsqueeze(1))
         sparse_list = []
         if qs1 is None:
             for lb in l:
@@ -323,8 +324,9 @@ class Loss(baseline.Loss):
         decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
                                  question_glove_idxs.view(-1))
         decoder_loss = decoder_loss1 + decoder_loss2
-        cf = self.gen_disc_ratio * torch.exp(
-            -torch.log(torch.tensor(2.0)) * torch.tensor(step).float() / self.loss_ratio_hl).to(decoder_loss.device)
+        log2 = torch.log(torch.tensor(2.0))
+        step = torch.tensor(step).float()
+        cf = self.gen_disc_ratio * torch.exp(-log2 * step / self.loss_ratio_hl)
         loss += cf * decoder_loss
 
         return loss

@@ -6,7 +6,7 @@ from collections import Counter
 import nltk
 import torch
 import torch.utils.data
-from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
 import numpy as np
 
 import base
@@ -192,7 +192,7 @@ class Processor(base.Processor):
         context_spans = example['context_spans']
         phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
         if self._emb_type == 'sparse':
-            out = csc_matrix(out)
+            out = csr_matrix(out)
         metadata = {'context': context,
                     'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
         return example['cid'], phrases, out, metadata
@@ -206,7 +206,7 @@ class Processor(base.Processor):
         dense = question_output
         out = dense.cpu().numpy()
         if self._emb_type == 'sparse':
-            out = csc_matrix(out)
+            out = csr_matrix(out)
         return example['id'], out
 
     def postprocess_question_batch(self, dataset, model_input, question_output):
@@ -332,7 +332,7 @@ class SparseTensor(object):
         row = np.tile(np.expand_dims(range(self.idx.shape[0]), 1), [1, self.idx.shape[1]]).flatten()
         data = self.val.flatten()
         shape = None if self.max is None else [self.idx.shape[0], self.max]
-        return csc_matrix((data, (row, col)), shape=shape)
+        return csr_matrix((data, (row, col)), shape=shape)
 
 
 # SquadProcessor-specific helpers
