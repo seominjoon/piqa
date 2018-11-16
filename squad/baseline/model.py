@@ -127,9 +127,10 @@ class SelfSeqAtt(nn.Module):
 
 
 class ContextBoundary(nn.Module):
-    def __init__(self, input_size, hidden_size, dropout, num_heads, identity=True, num_layers=1):
+    def __init__(self, input_size, hidden_size, dropout, num_heads, identity=True, num_layers=1, normalize=False):
         super(ContextBoundary, self).__init__()
         assert num_heads >= 1, num_heads
+        self.normalize = normalize
         self.dropout = torch.nn.Dropout(p=dropout)
         self.num_layers = num_layers
         for i in range(self.num_layers):
@@ -155,13 +156,19 @@ class ContextBoundary(nn.Module):
             atts.append(a['value'])
 
         dense = torch.cat(atts, 2)
+        if self.normalize:
+            dense = dense / dense.norm(p=2, dim=2, keepdim=True)
         return {'dense': dense}
 
 
 class QuestionBoundary(ContextBoundary):
-    def __init__(self, input_size, hidden_size, dropout, num_heads, max_pool=False):
-        super(QuestionBoundary, self).__init__(input_size, hidden_size, dropout, num_heads, identity=False)
+    def __init__(self, input_size, hidden_size, dropout, num_heads, num_layers=1,
+                 max_pool=False, normalize=False):
+        # No need to normalize question
+        super(QuestionBoundary, self).__init__(input_size, hidden_size, dropout, num_heads, identity=False,
+                                               num_layers=num_layers)
         self.max_pool = max_pool
+        self.normalize_ = normalize
 
     def forward(self, x, m):
         d = super().forward(x, m)
@@ -169,6 +176,9 @@ class QuestionBoundary(ContextBoundary):
             dense = d['dense'].max(1)[0]
         else:
             dense = d['dense'][:, 0, :]
+
+        if self.normalize_:
+            dense = dense / dense.norm(p=2, dim=1, keepdim=True)
         return {'dense': dense}
 
 
@@ -196,10 +206,15 @@ class Model(base.Model):
         word_size = self.embedding.output_size
         context_input_size = word_size
         question_input_size = word_size
-        self.context_start = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers)
-        self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers)
-        self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool)
-        self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool)
+        normalize = metric == 'cosine'
+        self.context_start = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers,
+                                             normalize=normalize)
+        self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers,
+                                           normalize=normalize)
+        self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool,
+                                               normalize=normalize)
+        self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool,
+                                             normalize=normalize)
         self.softmax = nn.Softmax(dim=1)
         self.max_ans_len = max_ans_len
         self.linear = nn.Linear(word_size, 1)
@@ -232,6 +247,8 @@ class Model(base.Model):
         hd2 = self.context_end(x, mx)
         x1 = hd1['dense']
         x2 = hd2['dense']
+
+        assert self.metric in ('ip', 'cosine', 'l2')
 
         logits1 = torch.sum(x1 * q1.unsqueeze(1), 2) + mx
         logits2 = torch.sum(x2 * q2.unsqueeze(1), 2) + mx

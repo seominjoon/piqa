@@ -301,7 +301,7 @@ def serve(args):
                 emb = np.concatenate(embs, 0)
 
                 d = 4 * args.hidden_size * args.num_heads
-                if args.metric == 'ip':
+                if args.metric == 'ip' or args.metric == 'cosine':
                     quantizer = faiss.IndexFlatIP(d)  # Exact Search
                 elif args.metric == 'l2':
                     quantizer = faiss.IndexFlatL2(d)
@@ -340,7 +340,7 @@ def serve(args):
                     return D[0], I[0]
 
             elif args.emb_type == 'sparse':
-                assert args.metric == 'l2'  # currently only l2 is supported (couldn't find a good ip library)
+                assert args.metric == 'cosine'  # currently only cosine is supported
                 import pysparnn.cluster_index as ci
 
                 emb = scipy.sparse.vstack(embs)
@@ -356,7 +356,7 @@ def serve(args):
                         idxs.append(len(idxs))
 
                 def search(emb, k):
-                    return zip(*[[each[0][0], int(each[0][1])] for each in cp.search(emb, k=k)])
+                    return zip(*[[each[0], int(each[1])] for each in cp.search(emb, k=k)[0]])
 
             else:
                 raise ValueError()
@@ -370,6 +370,7 @@ def serve(args):
                 question_results = processor.postprocess_question_batch(dataset, batch, question_output)
                 id_, emb = question_results[0]
                 D, I = search(emb, k)
+                print(D, I)
                 out = [(paras[results[i][0]], results[i][1], results[i][2], '%.4r' % d.item(),)
                        for d, i in zip(D, I)]
                 return out
