@@ -191,15 +191,19 @@ if __name__ == '__main__':
                 assert item['context'] in eval_context
 
                 # Iterate each closest doc with its text
-                for title in item['closest_docs_10'][0]:
-                    text = db.get_doc_text(title)
+                for split_title in item['closest_docs_{}'.format(
+                                        args.n_docs)][0]:
+                    text = db.get_doc_text(split_title)
                     for split_idx, split in enumerate(_split_doc(text)):
                         if split_idx == 0: # skip titles
-                            split_title = split
+                            curr_title = split
+                            # TODO debugging (split title != curr_title)
                             continue
 
                         # For SQuAD, we already added it.
-                        if split_title in unique_squad_docs:
+                        if split_title in unique_squad_docs or \
+                                curr_title in unique_squad_docs:
+                            # TODO Count exactly 'n' additional doc is added
                             break
 
                         # Or, use what we've retrieved
@@ -209,16 +213,37 @@ if __name__ == '__main__':
 
                 item['eval_context'] = eval_context
 
-        # TODO: sort by TFIDF
+        # Load retriever
+        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path)
+        print('Retriever loaded from {}'.format(args.retriever_path))
+
+        # Sort each paragraph using TF-IDF
+        from scipy.sparse import vstack
+
         for item in tqdm(squad):
-            
-            item['eval_context'] = eval_context[:args.n_pars]
+            # Calculate sparse vectors, and TF-IDF scores 
+            eval_spvec = [ranker.text2spvec(t) for t in item['eval_context']]
+            context_spvec = ranker.text2spvec(item['context'])
+            scores = context_spvec * vstack(eval_spvec).T
+
+            # Sorting copied from DrQA/drqa/retriever/tfidf_doc_ranker.py
+            if len(scores.data) <= args.n_pars:
+                o_sort = np.argsort(-socres.data)
+            else:
+                o = np.argpartition(-scores.data, args.n_pars)[0:args.n_pars]
+                o_sort = o[np.argsort(-scores.data[o])]
+
+            par_scores = scores.data[o_sort] # Not used
+            par_ids = [i for i in scores.indices[o_sort]]
+
+            # Assign sorted paragraphs
+            item['eval_context'] = list(np.array(item['eval_context'])[par_ids])
 
         # Check integrity and save
         # print(squad[5])
-        with open('dev-v1.1-top{}-new.json'.format(args.n_docs), 'w') as f:
+        with open('dev-v1.1-top{}-eval.json'.format(args.n_docs), 'w') as f:
             json.dump(squad, f)
         with open('dev-v1.1-top{}-open.json'.format(args.n_docs), 'w') as f:
             json.dump(list(open_context), f)
-        print('SQuAD evelopment set augmentation done.')
+        print('SQuAD development set augmentation done.')
 
