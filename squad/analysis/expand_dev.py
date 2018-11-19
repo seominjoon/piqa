@@ -104,6 +104,8 @@ if __name__ == '__main__':
                         help='Wikipedia DB path')
     parser.add_argument('--n-docs', type=int, default=10,
                         help='Number of closest documents')
+    parser.add_argument('--n-pars', type=int, default=10,
+                        help='Number of closest paragraphs')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='Number of process workers')
     parser.add_argument('--find-docs', default=False, action='store_true') 
@@ -141,7 +143,7 @@ if __name__ == '__main__':
                     (closest_docs[i][0], list(closest_docs[i][1]))
 
         # Check integrity and save
-        print(dev_data[5])
+        # print(dev_data[5])
         with open('dev-v1.1-top{}.json'.format(args.n_docs), 'w') as f:
             json.dump(dev_data, f)
         print('Getting top {} similar docs done.'.format(args.n_docs))
@@ -158,18 +160,65 @@ if __name__ == '__main__':
             assert len(squad) > 0
             assert 'closest_docs_{}'.format(args.n_docs) in squad[0].keys()
 
+            # Gather squad documents
+            squad_docs = {}
+            for item in squad:
+                title = ' '.join(item['cid'].split('_')[:-1])
+                if title not in squad_docs:
+                    squad_docs[title] = list()
+                squad_docs[title].append(item['context'])
+
+            # Make it unique (preserving orders)
+            # https://stackoverflow.com/a/480227
+            seen = set()
+            seen_add = seen.add
+            unique_squad_docs = {key: [x for x in val 
+                                       if not (x in seen or seen_add(x))]
+                                 for key, val in squad_docs.items()}
+
             # Iterate dev-squad, and append retrieved docs
+            open_context = set() # context for open-domain setting
             for item in tqdm(squad):
+                eval_context = [] # context for evaluation
+
+                # Append SQuAD document for the title
+                title = ' '.join(item['cid'].split('_')[:-1])
+                assert title in unique_squad_docs
+                for par in unique_squad_docs[title]:
+                    eval_context.append(par)
+                    open_context.update([par])
+                assert item['context'] in open_context
+                assert item['context'] in eval_context
+
+                # Iterate each closest doc with its text
                 for title in item['closest_docs_10'][0]:
                     text = db.get_doc_text(title)
-                    sim_context = []
                     for split_idx, split in enumerate(_split_doc(text)):
-                        sim_context.append(split)
-                    item['sim_context'] = sim_context
+                        if split_idx == 0: # skip titles
+                            split_title = split
+                            continue
+
+                        # For SQuAD, we already added it.
+                        if split_title in unique_squad_docs:
+                            break
+
+                        # Or, use what we've retrieved
+                        else:
+                            eval_context.append(split)
+                            open_context.update([split])
+
+                item['eval_context'] = eval_context
+
+        # TODO: sort by TFIDF
+        for item in tqdm(squad):
+            
+            item['eval_context'] = eval_context[:args.n_pars]
 
         # Check integrity and save
-        print(squad[5])
+        # print(squad[5])
         with open('dev-v1.1-top{}-new.json'.format(args.n_docs), 'w') as f:
             json.dump(squad, f)
+        with open('dev-v1.1-top{}-open.json'.format(args.n_docs), 'w') as f:
+            json.dump(list(open_context), f)
         print('SQuAD evelopment set augmentation done.')
 
