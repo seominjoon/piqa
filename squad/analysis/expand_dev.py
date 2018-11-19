@@ -6,6 +6,7 @@ additional requirements:
 """
 
 import argparse
+import regex
 import os
 import json
 import numpy as np
@@ -32,7 +33,8 @@ def _load_squad(squad_path, draft=False):
                         id_ = qa['id']
                         qid = '%s_%d' % (cid, question_idx)
                         question = qa['question']
-                        question_example = {'id': id_, 'qid': qid, 'question': question}
+                        question_example = {'id': id_, 'qid': qid, 
+                                            'question': question}
                         if 'answers' in qa:
                             answers, answer_starts, answer_ends = [], [], []
                             for answer in qa['answers']:
@@ -41,7 +43,8 @@ def _load_squad(squad_path, draft=False):
                                 answers.append(answer['text'])
                                 answer_starts.append(answer_start)
                                 answer_ends.append(answer_end)
-                            answer_example = {'answers': answers, 'answer_starts': answer_starts,
+                            answer_example = {'answers': answers, 
+                                              'answer_starts': answer_starts,
                                               'answer_ends': answer_ends}
                             question_example.update(answer_example)
 
@@ -60,11 +63,33 @@ def _load_squad(squad_path, draft=False):
         return examples
 
 
+# Copeid from DrQA/drqa/pipeline/drqa.py
+def _split_doc(doc):
+    """Given a doc, split it into chunks (by paragraph)."""
+    curr = []
+    curr_len = 0
+    for split in regex.split(r'\n+', doc):
+        split = split.strip()
+        if len(split) == 0:
+            continue
+        # Maybe group paragraphs together until we hit a length limit
+        if len(curr) > 0 and curr_len + len(split) > 0:
+            yield ' '.join(curr)
+            curr = []
+            curr_len = 0
+        curr.append(split)
+        curr_len += len(split)
+    if len(curr) > 0:
+        yield ' '.join(curr)
+
+
 # Predefined paths
 home = os.path.expanduser('~')
 DATA_PATH = os.path.join(home, 'data/squad/dev-v1.1.json')
 RET_PATH = os.path.join(home, 'Desktop/Jinhyuk/github/DrQA/data', 
     'wikipedia/docs-tfidf-ngram=2-hash=16777216-tokenizer=simple.npz')
+DB_PATH = os.path.join(home, 'Desktop/Jinhyuk/github/DrQA/data',
+    'wikipedia/docs.db')
 
 
 if __name__ == '__main__':
@@ -75,10 +100,13 @@ if __name__ == '__main__':
                         help='Dataset file path')
     parser.add_argument('--retriever-path', type=str, default=RET_PATH,
                         help='Document Retriever path')
+    parser.add_argument('--db-path', type=str, default=DB_PATH,
+                        help='Wikipedia DB path')
     parser.add_argument('--n-docs', type=int, default=10,
                         help='Number of closest documents')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='Number of process workers')
+    parser.add_argument('--find-docs', default=False, action='store_true') 
     args = parser.parse_args()
 
     # Load SQuAD data
@@ -89,31 +117,59 @@ if __name__ == '__main__':
     from drqa import retriever, tokenizers
     from drqa.retriever import utils
 
-    # Test retriever
-    ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path)
-    print('Retriever loaded from {}'.format(args.retriever_path))
-    closest_docs = ranker.batch_closest_docs(
-        ['Who won the heavy weight championship?'], 
-        k=args.n_docs, num_workers=args.num_workers
-    )
-    print('Test result: {}\n'.format(closest_docs[0][0]))
+    # Find top n docs?
+    if args.find_docs:
 
-    # Iterate SQuAD data and retrieve closest docs
-    batch_size = 4
-    for dev_idx in tqdm(range(0, len(dev_data), batch_size)):
-        batch_context = [ex['context'] 
-                         for ex in dev_data[dev_idx:dev_idx+batch_size]]
-        closest_docs = ranker.batch_closest_docs(batch_context, 
-                                                 k=args.n_docs)
-        for i, dev_ex in enumerate(dev_data[dev_idx:dev_idx+batch_size]):
-            dev_ex['closest_docs_{}'.format(args.n_docs)] = \
-                (closest_docs[i][0], list(closest_docs[i][1]))
+        # Test retriever
+        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path)
+        print('Retriever loaded from {}'.format(args.retriever_path))
+        closest_docs = ranker.batch_closest_docs(
+            ['Who won the heavy weight championship?'], 
+            k=args.n_docs, num_workers=args.num_workers
+        )
+        print('Test result: {}\n'.format(closest_docs[0][0]))
 
-    # Check integrity and save
-    print(dev_data[5])
-    with open('dev-v1.1-top{}.json'.format(args.n_docs), 'w') as f:
-        json.dump(json.dumps(dev_data), f)
-    print('Saved!')
+        # Iterate SQuAD data and retrieve closest docs
+        batch_size = 4
+        for dev_idx in tqdm(range(0, len(dev_data), batch_size)):
+            batch_context = [ex['context'] 
+                             for ex in dev_data[dev_idx:dev_idx+batch_size]]
+            closest_docs = ranker.batch_closest_docs(batch_context, 
+                                                     k=args.n_docs)
+            for i, dev_ex in enumerate(dev_data[dev_idx:dev_idx+batch_size]):
+                dev_ex['closest_docs_{}'.format(args.n_docs)] = \
+                    (closest_docs[i][0], list(closest_docs[i][1]))
 
-    # TODO: use doc_db to retrieve documents, and expand dev dataset
+        # Check integrity and save
+        print(dev_data[5])
+        with open('dev-v1.1-top{}.json'.format(args.n_docs), 'w') as f:
+            json.dump(dev_data, f)
+        print('Getting top {} similar docs done.'.format(args.n_docs))
+
+    # Use doc_db to retrieve documents, and expand dev dataset
+    else:
+
+        # Load Wikipedia DB
+        db = retriever.DocDB(db_path=args.db_path)
+
+        # Read result file, which must contain 'closest_docs_n' key
+        with open('results/dev-v1.1-top{}.json'.format(args.n_docs), 'r') as f:
+            squad = json.load(f)
+            assert len(squad) > 0
+            assert 'closest_docs_{}'.format(args.n_docs) in squad[0].keys()
+
+            # Iterate dev-squad, and append retrieved docs
+            for item in tqdm(squad):
+                for title in item['closest_docs_10'][0]:
+                    text = db.get_doc_text(title)
+                    sim_context = []
+                    for split_idx, split in enumerate(_split_doc(text)):
+                        sim_context.append(split)
+                    item['sim_context'] = sim_context
+
+        # Check integrity and save
+        print(squad[5])
+        with open('dev-v1.1-top{}-new.json'.format(args.n_docs), 'w') as f:
+            json.dump(squad, f)
+        print('SQuAD evelopment set augmentation done.')
 
