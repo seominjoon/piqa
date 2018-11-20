@@ -102,8 +102,10 @@ if __name__ == '__main__':
                         help='Document Retriever path')
     parser.add_argument('--db-path', type=str, default=DB_PATH,
                         help='Wikipedia DB path')
-    parser.add_argument('--n-docs', type=int, default=10,
-                        help='Number of closest documents')
+    parser.add_argument('--n-docs', type=int, default=100,
+                        help='Number of total closest documents per ex')
+    parser.add_argument('--n-docs-max', type=int, default=10,
+                        help='Number of maximum closest documents per ex')
     parser.add_argument('--n-pars', type=int, default=10,
                         help='Number of closest paragraphs')
     parser.add_argument('--num-workers', type=int, default=4,
@@ -123,7 +125,8 @@ if __name__ == '__main__':
     if args.find_docs:
 
         # Test retriever
-        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path)
+        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
+                                              strict=False)
         print('Retriever loaded from {}'.format(args.retriever_path))
         closest_docs = ranker.batch_closest_docs(
             ['Who won the heavy weight championship?'], 
@@ -191,6 +194,7 @@ if __name__ == '__main__':
                 assert item['context'] in eval_context
 
                 # Iterate each closest doc with its text
+                doc_counter = 0
                 for split_title in item['closest_docs_{}'.format(
                                         args.n_docs)][0]:
                     text = db.get_doc_text(split_title)
@@ -201,9 +205,8 @@ if __name__ == '__main__':
                             continue
 
                         # For SQuAD, we already added it.
-                        if split_title in unique_squad_docs or \
-                                curr_title in unique_squad_docs:
-                            # TODO Count exactly 'n' additional doc is added
+                        if split_title == title or curr_title == title:
+                            doc_counter -= 1
                             break
 
                         # Or, use what we've retrieved
@@ -211,39 +214,57 @@ if __name__ == '__main__':
                             eval_context.append(split)
                             open_context.update([split])
 
+                    doc_counter += 1
+                    if doc_counter == args.n_docs_max:
+                        break
+
                 item['eval_context'] = eval_context
 
         # Load retriever
-        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path)
+        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
+                                              strict=False)
         print('Retriever loaded from {}'.format(args.retriever_path))
 
-        # Sort each paragraph using TF-IDF
+        # Sort and filter paragraphs using TF-IDF
         from scipy.sparse import vstack
 
+        cache = {}
         for item in tqdm(squad):
-            # Calculate sparse vectors, and TF-IDF scores 
-            eval_spvec = [ranker.text2spvec(t) for t in item['eval_context']]
-            context_spvec = ranker.text2spvec(item['context'])
-            scores = context_spvec * vstack(eval_spvec).T
+            # Use cache for duplicate contexts
+            if item['context'] not in cache:
 
-            # Sorting copied from DrQA/drqa/retriever/tfidf_doc_ranker.py
-            if len(scores.data) <= args.n_pars:
-                o_sort = np.argsort(-socres.data)
+                # Calculate sparse vectors, and TF-IDF scores 
+                eval_spvec = [ranker.text2spvec(t) 
+                              for t in item['eval_context']
+                              if t != item['context']] 
+                context_spvec = ranker.text2spvec(item['context'])
+                scores = context_spvec * vstack(eval_spvec).T
+
+                # Sorting copied from DrQA/drqa/retriever/tfidf_doc_ranker.py
+                if len(scores.data) <= args.n_pars:
+                    o_sort = np.argsort(-socres.data)
+                else:
+                    o = np.argpartition(-scores.data, 
+                                        args.n_pars)[0:args.n_pars]
+                    o_sort = o[np.argsort(-scores.data[o])]
+
+                par_scores = scores.data[o_sort] # Not used
+                par_ids = [i for i in scores.indices[o_sort]]
+
+                # Assign sorted paragraphs
+                item['eval_context'] = list(np.array(
+                                            item['eval_context'])[par_ids])
+                cache[item['context']] = item['eval_context'][:]
             else:
-                o = np.argpartition(-scores.data, args.n_pars)[0:args.n_pars]
-                o_sort = o[np.argsort(-scores.data[o])]
-
-            par_scores = scores.data[o_sort] # Not used
-            par_ids = [i for i in scores.indices[o_sort]]
-
-            # Assign sorted paragraphs
-            item['eval_context'] = list(np.array(item['eval_context'])[par_ids])
+                item['eval_context'] = cache[item['context']][:]
 
         # Check integrity and save
         # print(squad[5])
-        with open('dev-v1.1-top{}-eval.json'.format(args.n_docs), 'w') as f:
+        with open('dev-v1.1-top{}-eval-par{}.json'.format(args.n_docs,
+                  args.n_pars), 'w') as f:
             json.dump(squad, f)
-        with open('dev-v1.1-top{}-open.json'.format(args.n_docs), 'w') as f:
+        with open('dev-v1.1-top{}-open-doc{}.json'.format(args.n_docs,
+                  args.n_docs_max), 'w') as f:
             json.dump(list(open_context), f)
         print('SQuAD development set augmentation done.')
 
