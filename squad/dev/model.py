@@ -194,7 +194,7 @@ class Model(baseline.Model):
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
 
-        assert self.metric in ('ip', 'cosine')
+        assert self.metric in ('ip', 'cosine', 'l2')
 
         logits1, logits2 = 0.0, 0.0
         if self.dense:
@@ -203,6 +203,14 @@ class Model(baseline.Model):
         if self.sparse:
             logits1 += (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
             logits2 += (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
+
+        if self.metric == 'l2':
+            if self.dense:
+                logits1 += -0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+                logits2 += -0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+            if self.sparse:
+                logits1 += -0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
+                logits2 += -0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)

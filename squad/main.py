@@ -4,6 +4,7 @@ from collections import OrderedDict
 from pprint import pprint
 import importlib
 
+from sklearn.neighbors import NearestNeighbors
 import scipy.sparse
 import torch
 import numpy as np
@@ -340,23 +341,24 @@ def serve(args):
                     return D[0], I[0]
 
             elif args.emb_type == 'sparse':
-                assert args.metric == 'cosine'  # currently only cosine is supported
-                import pysparnn.cluster_index as ci
+                assert args.metric == 'l2'  # currently only l2 exact search is supported
 
-                emb = scipy.sparse.vstack(embs)
-                cp = ci.MultiClusterIndex(emb, idxs)
+                embs_cat = scipy.sparse.vstack(embs).tocsr()
+                search_index = NearestNeighbors(n_neighbors=5, metric='l2', algorithm='brute').fit(embs_cat)
 
                 for cur_phrases, each_emb, metadata in iterator:
+                    raise Exception()
                     phrases.extend(cur_phrases)
                     for span in metadata['answer_spans']:
                         results.append([len(paras), span[0], span[1]])
                     paras.append(metadata['context'])
-                    for each_vec in each_emb:
-                        cp.insert(each_vec, len(idxs))
-                        idxs.append(len(idxs))
+                    search_index.addDataPointBatch(each_emb.tocsr())
 
                 def search(emb, k):
-                    return zip(*[[each[0], int(each[1])] for each in cp.search(emb, k=k)[0]])
+                    emb = emb.tocsr()
+                    nbrs = search_index.kneighbors(emb)
+                    D, I = nbrs
+                    return D[0], I[0]
 
             else:
                 raise ValueError()
@@ -370,7 +372,6 @@ def serve(args):
                 question_results = processor.postprocess_question_batch(dataset, batch, question_output)
                 id_, emb = question_results[0]
                 D, I = search(emb, k)
-                print(D, I)
                 out = [(paras[results[i][0]], results[i][1], results[i][2], '%.4r' % d.item(),)
                        for d, i in zip(D, I)]
                 return out
