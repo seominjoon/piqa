@@ -340,23 +340,40 @@ def serve(args):
                     return D[0], I[0]
 
             elif args.emb_type == 'sparse':
-                assert args.metric == 'cosine'  # currently only cosine is supported
-                import pysparnn.cluster_index as ci
+                assert args.metric == 'ip'  # currently only inner product is supported
+                import nmslib
 
-                emb = scipy.sparse.vstack(embs)
-                cp = ci.MultiClusterIndex(emb, idxs)
+                search_index = nmslib.init(method='hnsw', space='negdotprod_sparse',
+                                           data_type=nmslib.DataType.SPARSE_VECTOR)
+
+                for emb in embs:
+                    search_index.addDataPointBatch(emb.tocsr())
 
                 for cur_phrases, each_emb, metadata in iterator:
                     phrases.extend(cur_phrases)
                     for span in metadata['answer_spans']:
                         results.append([len(paras), span[0], span[1]])
                     paras.append(metadata['context'])
-                    for each_vec in each_emb:
-                        cp.insert(each_vec, len(idxs))
-                        idxs.append(len(idxs))
+                    search_index.addDataPointBatch(each_emb)
+
+                # Set index parameters
+                M = 30
+                efC = 100
+                num_threads = 4
+                index_time_params = {'M': M, 'indexThreadQty': num_threads, 'efConstruction': efC, 'post': 0}
+                search_index.createIndex(index_time_params)
+
+                # Setting query-time parameters
+                efS = 100
+                query_time_params = {'efSearch': efS}
+                print('Setting query-time parameters', query_time_params)
+                search_index.setQueryTimeParams(query_time_params)
 
                 def search(emb, k):
-                    return zip(*[[each[0], int(each[1])] for each in cp.search(emb, k=k)[0]])
+                    emb = emb.tocsr()
+                    nbrs = search_index.knnQueryBatch(emb, k)
+                    I, D = nbrs[0]
+                    return D, I
 
             else:
                 raise ValueError()
@@ -370,7 +387,6 @@ def serve(args):
                 question_results = processor.postprocess_question_batch(dataset, batch, question_output)
                 id_, emb = question_results[0]
                 D, I = search(emb, k)
-                print(D, I)
                 out = [(paras[results[i][0]], results[i][1], results[i][2], '%.4r' % d.item(),)
                        for d, i in zip(D, I)]
                 return out
