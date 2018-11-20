@@ -59,14 +59,14 @@ class ContextBoundary(baseline.model.ContextBoundary):
         sparse = self.sparse(x, m) if self.sparse is not None else None
 
         if self.normalize:
-            dense_norm = dense.norm(p=2, dim=2, keepdim=True)
-            if sparse['value'] is None:
+            dense_norm = 2.0 ** 0.5 * dense.norm(p=2, dim=2, keepdim=True)
+            if sparse is None:
                 norm = dense_norm
             else:
                 sparse_norm = sparse['value'].norm(p=2, dim=2, keepdim=True)
                 norm = (dense_norm ** dense_norm + sparse_norm ** sparse_norm) ** 0.5
-                sparse['value'] /= norm
-            dense /= norm
+                sparse['value'] = sparse['value'] / norm
+            dense = dense / norm
 
         return {'dense': dense, 'sparse': sparse['value'] if sparse is not None else None,
                 'key': sparse['key'] if sparse is not None else None,
@@ -92,14 +92,14 @@ class QuestionBoundary(ContextBoundary):
             sparse = d['sparse'] if d['sparse'] is None else d['sparse'][:, 0, :]
 
         if self.normalize_:
-            dense_norm = dense.norm(p=2, dim=1, keepdim=True)
-            if sparse['value'] is None:
+            dense_norm = 2.0 ** 0.5 * dense.norm(p=2, dim=1, keepdim=True)
+            if sparse is None:
                 norm = dense_norm
             else:
                 sparse_norm = sparse['value'].norm(p=2, dim=1, keepdim=True)
                 norm = (dense_norm ** dense_norm + sparse_norm ** sparse_norm) ** 0.5
-                sparse['value'] /= norm
-            dense /= norm
+                sparse['value'] = sparse['value'] / norm
+            dense = dense / norm
 
         return {'dense': dense, 'sparse': sparse}
 
