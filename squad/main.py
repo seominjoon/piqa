@@ -4,6 +4,7 @@ from collections import OrderedDict
 from pprint import pprint
 import importlib
 
+from sklearn.neighbors import NearestNeighbors
 import scipy.sparse
 import torch
 import numpy as np
@@ -346,15 +347,16 @@ def serve(args):
                 search_index = nmslib.init(method='hnsw', space='negdotprod_sparse',
                                            data_type=nmslib.DataType.SPARSE_VECTOR)
 
-                for emb in embs:
-                    search_index.addDataPointBatch(emb.tocsr())
+                embs_cat = scipy.sparse.vstack(embs)
+                search_index.addDataPointBatch(embs_cat.tocsr())
 
                 for cur_phrases, each_emb, metadata in iterator:
+                    raise Exception()
                     phrases.extend(cur_phrases)
                     for span in metadata['answer_spans']:
                         results.append([len(paras), span[0], span[1]])
                     paras.append(metadata['context'])
-                    search_index.addDataPointBatch(each_emb)
+                    search_index.addDataPointBatch(each_emb.tocsr())
 
                 # Set index parameters
                 M = 30
