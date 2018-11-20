@@ -341,14 +341,10 @@ def serve(args):
                     return D[0], I[0]
 
             elif args.emb_type == 'sparse':
-                assert args.metric == 'ip'  # currently only inner product is supported
-                import nmslib
+                assert args.metric == 'l2'  # currently only l2 exact search is supported
 
-                search_index = nmslib.init(method='hnsw', space='negdotprod_sparse',
-                                           data_type=nmslib.DataType.SPARSE_VECTOR)
-
-                embs_cat = scipy.sparse.vstack(embs)
-                search_index.addDataPointBatch(embs_cat.tocsr())
+                embs_cat = scipy.sparse.vstack(embs).tocsr()
+                search_index = NearestNeighbors(n_neighbors=5, metric='l2', algorithm='brute').fit(embs_cat)
 
                 for cur_phrases, each_emb, metadata in iterator:
                     raise Exception()
@@ -358,24 +354,11 @@ def serve(args):
                     paras.append(metadata['context'])
                     search_index.addDataPointBatch(each_emb.tocsr())
 
-                # Set index parameters
-                M = 30
-                efC = 100
-                num_threads = 4
-                index_time_params = {'M': M, 'indexThreadQty': num_threads, 'efConstruction': efC, 'post': 0}
-                search_index.createIndex(index_time_params)
-
-                # Setting query-time parameters
-                efS = 100
-                query_time_params = {'efSearch': efS}
-                print('Setting query-time parameters', query_time_params)
-                search_index.setQueryTimeParams(query_time_params)
-
                 def search(emb, k):
                     emb = emb.tocsr()
-                    nbrs = search_index.knnQueryBatch(emb, k)
-                    I, D = nbrs[0]
-                    return D, I
+                    nbrs = search_index.kneighbors(emb)
+                    D, I = nbrs
+                    return D[0], I[0]
 
             else:
                 raise ValueError()
