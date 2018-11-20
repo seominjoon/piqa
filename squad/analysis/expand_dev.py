@@ -225,7 +225,7 @@ if __name__ == '__main__':
                                               strict=False)
         print('Retriever loaded from {}'.format(args.retriever_path))
 
-        # Sort each paragraph using TF-IDF
+        # Sort and filter paragraphs using TF-IDF
         from scipy.sparse import vstack
 
         cache = {}
