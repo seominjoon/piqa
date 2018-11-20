@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
     # Find top n docs?
     if args.find_docs:
-
+ 
         # Test retriever
         ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
                                               strict=False)
