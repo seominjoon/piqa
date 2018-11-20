@@ -123,7 +123,7 @@ class Model(baseline.Model):
                  max_pool=False,
                  agg='max',
                  num_layers=1,
-                 gen_disc_ratio=0.0,
+                 dual=False,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -158,8 +158,8 @@ class Model(baseline.Model):
         self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
                                              sparse_activation=sparse_activation, max_pool=max_pool,
                                              normalize=normalize)
-        self.gen_disc_ratio = gen_disc_ratio
-        if gen_disc_ratio > 0.0:
+        self.dual = dual
+        if dual:
             self.decoder = Decoder(self.embedding.glove_embedding.embedding,
                                    2 * hidden_size * num_heads, num_layers, dropout)
 
@@ -238,7 +238,7 @@ class Model(baseline.Model):
                    'qsi1': question_glove_idxs,
                    'qsi2': question_glove_idxs}
 
-        if self.gen_disc_ratio > 0.0:
+        if self.dual:
             answer_word_starts = kwargs['answer_word_starts']
             answer_word_ends = kwargs['answer_word_ends']
             eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
@@ -345,10 +345,10 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, gen_disc_ratio, loss_ratio_hl, **kwargs):
+    def __init__(self, dual_init, dual_hl, **kwargs):
         super(Loss, self).__init__(**kwargs)
-        self.gen_disc_ratio = gen_disc_ratio
-        self.loss_ratio_hl = loss_ratio_hl
+        self.dual_init = dual_init
+        self.dual_hl = dual_hl
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
                 decoder_logits1=None, decoder_logits2=None, step=None, **kwargs):
@@ -362,7 +362,7 @@ class Loss(baseline.Loss):
         decoder_loss = decoder_loss1 + decoder_loss2
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
-        cf = self.gen_disc_ratio * torch.exp(-log2 * step / self.loss_ratio_hl)
+        cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)
         loss += cf * decoder_loss
 
         return loss
