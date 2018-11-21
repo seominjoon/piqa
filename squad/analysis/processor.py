@@ -17,25 +17,40 @@ class Processor(baseline.Processor):
         super(Processor, self).__init__(**kwargs)
 
     def postprocess_context(self, example, context_outputs):
-        print(example.keys())
-        exit()
-        # Iterate (eval_len + 1)
-        for context_output in context_outputs:
+        # Iterate (eval_len + 1) => last one is a positive one
+        all_phrases = []
+        all_out = None
+        for idx, context_output in enumerate(context_outputs):
             pos_tuple, dense, sparse_ = context_output
             out = dense.cpu().numpy()
-            # TODO: get eval_context and iterate them, too (with idx)
-            context = example['context']
-            context_spans = example['context_spans']
+
+            # Negative contexts
+            if idx < len(context_outputs) - 1:
+                context = example['eval_context'][idx]
+                context_spans = example['eval_context_spans'][idx]
+            # Positive context
+            else:
+                context = example['context']
+                context_spans = example['context_spans']
             phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
+
+            # Sparse
             if self._emb_type == 'sparse' or sparse_ is not None:
                 out = csr_matrix(out)
                 if sparse_ is not None:
                     idx, val, max_ = sparse_
                     sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
                     out = hstack([out, sparse_tensor.scipy()])
+
+            # TODO: change this for serve_demo
             metadata = {'context': context,
                         'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
-        return example['cid'], phrases, out, metadata
+
+            all_phrases += phrases
+            all_out = out if all_out is None else np.append(all_out, out, 
+                                                            axis=0)
+
+        return example['cid'], all_phrases, all_out, metadata
 
     def postprocess_question(self, example, question_output):
         dense, sparse = question_output

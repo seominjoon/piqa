@@ -98,6 +98,7 @@ class FileInterface(object):
         savez(path, emb)
 
     def context_emb(self, id_, phrases, emb, metadata=None, emb_type='dense'):
+        print(id_)
         if not os.path.exists(self._context_emb_dir):
             os.makedirs(self._context_emb_dir)
         savez = scipy.sparse.save_npz if emb_type == 'sparse' else np.savez_compressed
