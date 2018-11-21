@@ -123,7 +123,7 @@ class Model(baseline.Model):
                  max_pool=False,
                  agg='max',
                  num_layers=1,
-                 gen_disc_ratio=0.0,
+                 dual=False,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -158,10 +158,10 @@ class Model(baseline.Model):
         self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, sparse=sparse,
                                              sparse_activation=sparse_activation, max_pool=max_pool,
                                              normalize=normalize)
-        self.gen_disc_ratio = gen_disc_ratio
-        if gen_disc_ratio > 0.0:
+        self.dual = dual
+        if dual:
             self.decoder = Decoder(self.embedding.glove_embedding.embedding,
-                                   2 * hidden_size * num_heads, num_layers, dropout)
+                                   4 * hidden_size * num_heads, num_layers, dropout)
 
     def forward(self,
                 context_char_idxs,
@@ -238,16 +238,15 @@ class Model(baseline.Model):
                    'qsi1': question_glove_idxs,
                    'qsi2': question_glove_idxs}
 
-        if self.gen_disc_ratio > 0.0:
+        if self.dual:
             answer_word_starts = kwargs['answer_word_starts']
             answer_word_ends = kwargs['answer_word_ends']
             eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
             init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
             init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
-            decoder_logits1 = self.decoder(init1, question_idxs=question_glove_idxs)
-            decoder_logits2 = self.decoder(init2, question_idxs=question_glove_idxs)
-            return_['decoder_logits1'] = decoder_logits1
-            return_['decoder_logits2'] = decoder_logits2
+            init = torch.cat([init1, init2], 1)
+            decoder_logits = self.decoder(init, question_idxs=question_glove_idxs)
+            return_['decoder_logits'] = decoder_logits
 
         return return_
 
@@ -345,24 +344,22 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, gen_disc_ratio, loss_ratio_hl, **kwargs):
+    def __init__(self, dual, dual_init, dual_hl, **kwargs):
         super(Loss, self).__init__(**kwargs)
-        self.gen_disc_ratio = gen_disc_ratio
-        self.loss_ratio_hl = loss_ratio_hl
+        self.dual = dual
+        self.dual_init = dual_init
+        self.dual_hl = dual_hl
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
-                decoder_logits1=None, decoder_logits2=None, step=None, **kwargs):
+                decoder_logits=None, step=None, **kwargs):
         loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
-        if decoder_logits1 is None:
+        if not self.dual:
             return loss
-        decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
-                                 question_glove_idxs.view(-1))
-        decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
-                                 question_glove_idxs.view(-1))
-        decoder_loss = decoder_loss1 + decoder_loss2
+        decoder_loss = self.cel(decoder_logits.view(-1, decoder_logits.size(2)),
+                                question_glove_idxs.view(-1))
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
-        cf = self.gen_disc_ratio * torch.exp(-log2 * step / self.loss_ratio_hl)
+        cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)
         loss += cf * decoder_loss
 
         return loss
