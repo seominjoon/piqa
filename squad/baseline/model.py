@@ -133,11 +133,12 @@ class ContextBoundary(nn.Module):
         self.normalize = normalize
         self.dropout = torch.nn.Dropout(p=dropout)
         self.num_layers = num_layers
-        for i in range(self.num_layers):
-            self.add_module('lstm%d' % i, torch.nn.LSTM(input_size=input_size,
-                                                        hidden_size=hidden_size,
-                                                        batch_first=True,
-                                                        bidirectional=True))
+        self.lstm = nn.LSTM(input_size=input_size,
+                            hidden_size=hidden_size,
+                            batch_first=True,
+                            dropout=dropout if num_layers > 1 else 0.0,
+                            num_layers=num_layers,
+                            bidirectional=True)
         self.num_heads = num_heads
         self.identity = identity
         self.att_num_heads = num_heads - 1 if identity else num_heads
@@ -148,8 +149,7 @@ class ContextBoundary(nn.Module):
     def forward(self, x, m):
         modules = dict(self.named_children())
         x = self.dropout(x)
-        for i in range(self.num_layers):
-            x, _ = modules['lstm%d' % i](x)
+        x, _ = self.lstm(x)
         atts = [x] if self.identity else []
         for i in range(self.att_num_heads):
             a = modules['self_att%d' % i](x, m)
@@ -211,9 +211,9 @@ class Model(base.Model):
         self.context_end = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, num_layers=num_layers,
                                            normalize=normalize)
         self.question_start = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool,
-                                               normalize=normalize)
+                                               num_layers=num_layers, normalize=normalize)
         self.question_end = QuestionBoundary(question_input_size, hidden_size, dropout, num_heads, max_pool=max_pool,
-                                             normalize=normalize)
+                                             num_layers=num_layers, normalize=normalize)
         self.softmax = nn.Softmax(dim=1)
         self.max_ans_len = max_ans_len
         self.linear = nn.Linear(word_size, 1)
