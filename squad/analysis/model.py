@@ -48,8 +48,7 @@ class ContextBoundary(baseline.model.ContextBoundary):
     def forward(self, x, m):
         modules = dict(self.named_children())
         x = self.dropout(x)
-        for i in range(self.num_layers):
-            x, _ = modules['lstm%d' % i](x)
+        x, _ = self.lstm(x)
         atts = [x] if self.identity else []
         for i in range(self.att_num_heads):
             a = modules['self_att%d' % i](x, m)
