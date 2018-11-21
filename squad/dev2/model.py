@@ -214,6 +214,7 @@ class Model(baseline.Model):
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
 
+        """
         x1_stack = x1[:, :num_words, :].unsqueeze(2).repeat(1, 1, self.max_ans_len, 1)
         x2_list = []
         for i in range(self.max_ans_len):
@@ -221,14 +222,12 @@ class Model(baseline.Model):
         x2_stack = torch.stack(x2_list, 2)
         x_stack = torch.cat([x1_stack, x2_stack], 3)
         x_stack = self.relu(self.context_linear(x_stack))
-
-        assert self.metric in ('ip', 'cosine')
+        """
 
         logits, logits1, logits2 = 0.0, 0.0, 0.0
         if self.dense:
             logits1 += torch.sum(x1 * q1.unsqueeze(1), 2) + mx
             logits2 += torch.sum(x2 * q2.unsqueeze(1), 2) + mx
-            logits += torch.sum(x_stack * q_stack.unsqueeze(1).unsqueeze(1), 3) + mx[:, :num_words].unsqueeze(2)
         if self.sparse:
             logits1 += (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
             logits2 += (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
@@ -241,12 +240,9 @@ class Model(baseline.Model):
         prob *= mask
         _, yp1 = prob.max(2)[0].max(1)
         _, yp2 = prob.max(1)[0].max(1)
-        _, yp1 = logits.max(2)[0].max(1)
-        yp2 = logits.max(1)[0].max(1)[1] + yp1
 
         return_ = {'logits1': logits1,
                    'logits2': logits2,
-                   'logits': logits,
                    'yp1': yp1,
                    'yp2': yp2,
                    'x1': x1,
@@ -376,14 +372,7 @@ class Loss(baseline.Loss):
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
                 decoder_logits1=None, decoder_logits2=None, step=None, **kwargs):
-        # loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
-        answer_word_starts = answer_word_starts[:, 0]
-        answer_word_ends = answer_word_ends[:, 0]
-        answer_word_starts -= 1
-        answer_word_ends -= 1
-        logits = kwargs['logits']
-        loss = self.cel(logits.view(logits.size(0), -1),
-                        answer_word_starts * logits.size(2) + (answer_word_ends - answer_word_starts))
+        loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
         if decoder_logits1 is None:
             return loss
         decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),

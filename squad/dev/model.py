@@ -318,7 +318,8 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
         self.embedding = embedding
         embed_size = embedding.embedding_dim
-        self.gru = nn.GRU(embed_size, hidden_size, num_layers=num_layers, dropout=dropout, batch_first=True)
+        self.gru = nn.GRU(embed_size, hidden_size, num_layers=num_layers, dropout=dropout if num_layers > 1 else 0.0,
+                          batch_first=True)
         self.dropout = nn.Dropout(p=dropout)
         self.proj = nn.Linear(hidden_size, embed_size)
         self.start = nn.Parameter(torch.randn(embed_size))
@@ -356,7 +357,7 @@ class Loss(baseline.Loss):
         if not self.dual:
             return loss
         decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
-                                question_glove_idxs.view(-1))
+                                 question_glove_idxs.view(-1))
         decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
                                  question_glove_idxs.view(-1))
         decoder_loss = decoder_loss1 + decoder_loss2
