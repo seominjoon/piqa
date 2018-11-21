@@ -2,24 +2,39 @@ from scipy.sparse import csr_matrix, hstack
 import numpy as np
 
 import baseline
-from baseline.processor import get_pred
+import torch
+from baseline.processor import get_pred, _get_shape, _fill_tensor
 
 
 class Processor(baseline.Processor):
-    def postprocess_context(self, example, context_output):
-        pos_tuple, dense, sparse_ = context_output
-        out = dense.cpu().numpy()
-        context = example['context']
-        context_spans = example['context_spans']
-        phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
-        if self._emb_type == 'sparse' or sparse_ is not None:
-            out = csr_matrix(out)
-            if sparse_ is not None:
-                idx, val, max_ = sparse_
-                sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
-                out = hstack([out, sparse_tensor.scipy()])
-        metadata = {'context': context,
-                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+    def __init__(self, **kwargs):
+        self.keys.add('eval_context_word_idxs')
+        self.keys.add('eval_context_glove_idxs')
+        self.keys.add('eval_context_char_idxs')
+        self.depths['eval_context_word_idxs'] = 2
+        self.depths['eval_context_glove_idxs'] = 2
+        self.depths['eval_context_char_idxs'] = 3
+        super(Processor, self).__init__(**kwargs)
+
+    def postprocess_context(self, example, context_outputs):
+        print(example.keys())
+        exit()
+        # Iterate (eval_len + 1)
+        for context_output in context_outputs:
+            pos_tuple, dense, sparse_ = context_output
+            out = dense.cpu().numpy()
+            # TODO: get eval_context and iterate them, too (with idx)
+            context = example['context']
+            context_spans = example['context_spans']
+            phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
+            if self._emb_type == 'sparse' or sparse_ is not None:
+                out = csr_matrix(out)
+                if sparse_ is not None:
+                    idx, val, max_ = sparse_
+                    sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
+                    out = hstack([out, sparse_tensor.scipy()])
+            metadata = {'context': context,
+                        'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
         return example['cid'], phrases, out, metadata
 
     def postprocess_question(self, example, question_output):
@@ -33,6 +48,7 @@ class Processor(baseline.Processor):
                 out = hstack([out, sparse_tensor.scipy()])
         return example['id'], out
 
+    # Override to process 'eval_context'
     def preprocess(self, example):
         prepro_example = {'idx': example['idx']}
 
@@ -76,12 +92,62 @@ class Processor(baseline.Processor):
             prepro_example['answer_word_starts'] = answer_word_starts
             prepro_example['answer_word_ends'] = answer_word_ends
 
+        # Added for additional evaluation contexts
         if 'eval_context' in example:
-            print("lets start!!!")
-            exit()
+            prepro_example['eval_context_spans'] = []
+            prepro_example['eval_context_word_idxs'] = []
+            prepro_example['eval_context_glove_idxs'] = []
+            prepro_example['eval_context_char_idxs'] = []
+
+            for new_context in example['eval_context']:
+                new_context_spans = self._word_tokenize(new_context)
+                new_context_words = tuple(new_context[span[0]:span[1]] for span in new_context_spans)
+                new_context_word_idxs = tuple(map(self._word2idx, new_context_words))
+                new_context_glove_idxs = tuple(map(self._word2idx_ext, new_context_words))
+                new_context_char_idxs = tuple(tuple(map(self._char2idx, word)) for word in new_context_words)
+                prepro_example['eval_context_spans'].append(new_context_spans)
+                prepro_example['eval_context_word_idxs'].append(new_context_word_idxs)
+                prepro_example['eval_context_glove_idxs'].append(new_context_glove_idxs)
+                prepro_example['eval_context_char_idxs'].append(new_context_char_idxs)
 
         output = dict(tuple(example.items()) + tuple(prepro_example.items()))
+
         return output
+
+    # Override to process 'eval_context'
+    def collate(self, examples):
+        tensors = {}
+        for key in self.keys:
+            if key not in examples[0]:
+                continue
+            val = tuple(example[key] for example in examples)
+            depth = self.depths[key] + 1
+            shape = _get_shape(val, depth)
+            tensor = torch.zeros(shape, dtype=torch.int64)
+            _fill_tensor(tensor, val)
+            tensors[key] = tensor
+        if self._elmo:
+            if 'context' in examples[0]:
+                sentences = [[example['context'][span[0]:span[1]] for span in example['context_spans']]
+                             for example in examples]
+                character_ids = self._batch_to_ids(sentences)
+                tensors['context_elmo_idxs'] = character_ids
+            if 'question' in examples[0]:
+                sentences = [[example['question'][span[0]:span[1]] for span in example['question_spans']]
+                             for example in examples]
+                character_ids = self._batch_to_ids(sentences)
+                tensors['question_elmo_idxs'] = character_ids
+
+            # Added
+            if 'eval_context' in examples[0]:
+                sentences = [[[ex[sp[0]:sp[1]] for sp in span]
+                    for (ex, span) in zip(example['eval_context'],
+                                          example['eval_context_spans'])]
+                    for example in examples]
+                character_ids = [self._batch_to_ids(sent) for sent in sentences]
+                character_ids = torch.stack(character_ids)
+                tensors['eval_context_elmo_idxs'] = character_ids
+        return tensors
 
 
 class Sampler(baseline.Sampler):

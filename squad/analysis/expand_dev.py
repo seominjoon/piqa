@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
     # Find top n docs?
     if args.find_docs:
- 
+
         # Test retriever
         ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
                                               strict=False)
@@ -178,6 +178,9 @@ if __name__ == '__main__':
             unique_squad_docs = {key: [x for x in val 
                                        if not (x in seen or seen_add(x))]
                                  for key, val in squad_docs.items()}
+
+            # For draft version
+            # squad = squad[:2]
 
             # Iterate dev-squad, and append retrieved docs
             open_context = set() # context for open-domain setting
