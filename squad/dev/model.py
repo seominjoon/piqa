@@ -48,8 +48,7 @@ class ContextBoundary(baseline.model.ContextBoundary):
     def forward(self, x, m):
         modules = dict(self.named_children())
         x = self.dropout(x)
-        for i in range(self.num_layers):
-            x, _ = modules['lstm%d' % i](x)
+        x, _ = self.lstm(x)
         atts = [x] if self.identity else []
         for i in range(self.att_num_heads):
             a = modules['self_att%d' % i](x, m)
@@ -161,7 +160,7 @@ class Model(baseline.Model):
         self.dual = dual
         if dual:
             self.decoder = Decoder(self.embedding.glove_embedding.embedding,
-                                   4 * hidden_size * num_heads, num_layers, dropout)
+                                   2 * hidden_size * num_heads, num_layers, dropout)
 
     def forward(self,
                 context_char_idxs,
@@ -244,9 +243,10 @@ class Model(baseline.Model):
             eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
             init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
             init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
-            init = torch.cat([init1, init2], 1)
-            decoder_logits = self.decoder(init, question_idxs=question_glove_idxs)
-            return_['decoder_logits'] = decoder_logits
+            decoder_logits1 = self.decoder(init1, question_idxs=question_glove_idxs)
+            decoder_logits2 = self.decoder(init2, question_idxs=question_glove_idxs)
+            return_['decoder_logits1'] = decoder_logits1
+            return_['decoder_logits2'] = decoder_logits2
 
         return return_
 
@@ -318,7 +318,7 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
         self.embedding = embedding
         embed_size = embedding.embedding_dim
-        self.gru = nn.GRU(embed_size, hidden_size, num_layers=num_layers, batch_first=True)
+        self.gru = nn.GRU(embed_size, hidden_size, num_layers=num_layers, dropout=dropout, batch_first=True)
         self.dropout = nn.Dropout(p=dropout)
         self.proj = nn.Linear(hidden_size, embed_size)
         self.start = nn.Parameter(torch.randn(embed_size))
@@ -351,12 +351,15 @@ class Loss(baseline.Loss):
         self.dual_hl = dual_hl
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
-                decoder_logits=None, step=None, **kwargs):
+                decoder_logits1=None, decoder_logits2=None, step=None, **kwargs):
         loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
         if not self.dual:
             return loss
-        decoder_loss = self.cel(decoder_logits.view(-1, decoder_logits.size(2)),
+        decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
                                 question_glove_idxs.view(-1))
+        decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
+                                 question_glove_idxs.view(-1))
+        decoder_loss = decoder_loss1 + decoder_loss2
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
         cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)
