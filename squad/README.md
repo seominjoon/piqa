@@ -57,6 +57,21 @@ For LSTM+SA+ELMo model:
 python main.py baseline --cuda --num_heads 2 --elmo --train_path --batch_size 32 $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
 ```
 
+In our follow-up paper (to be released soon), we introduce two more models: Sparse and Dual. 
+
+For LSTM+SA+ELMo+Sparse model:
+
+```bash
+python main.py dev --cuda --num_heads 2 --elmo --sparse --train_path --batch_size 32 $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
+```
+
+For LSTM+SA+ELMo+Sparse+Dual model: 
+
+```bash
+python main.py dev --cuda --num_heads 2 --elmo --sparse --dual --train_path --batch_size 32 $SQUAD_TRAIN_PATH --test_path $SQUAD_DEV_PATH
+```
+
+
 Note that the first positional argument, `baseline`, indicates that we are using the python modules in `./baseline/` directory.
 In future, you can easily add a new model by creating a new module (e.g. `./my_model/`) and giving the positional argument (`my_model`).
 
@@ -168,7 +183,22 @@ Lastly, to evaluate, use the official evalutor script:
 python evaluate.py $SQUAD_DEV_PATH $PRED_PATH
 ```
 
-### 3. Demo
+
+### 4. Results
+
+The table below shows the baseline results (L denotes LSTM, A denotes Self-Attention, E denotes ELMo, S denotes Sparse, D denotes Dual):
+
+|        |F1   |EM   |
+|--------|:---:|:---:|
+|L       |57.2 |46.8 |
+|LA      |59.8 |49.0 |
+|LAE     |62.7 |52.7 |
+|LAED    |65.2 |55.0 |
+|LAES    |69.4 |59.0 |
+|LAESD   |70.1 |59.7 |
+
+
+### 5. Demo
 Demo uses dumped context embeddings. We need to make one change: when encoding document (context), give `--metadata` flag to output additional necessary data for demo:
 ```bash
 python main.py baseline --cuda --mode embed_context --load_dir $OUTPUT_DIR/save/XXXX/model.pt --test_path $SQUAD_DEV_CONTEXT_PATH --context_emb_dir $CONTEXT_EMB_DIR --metadata
