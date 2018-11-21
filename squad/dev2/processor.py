@@ -1,7 +1,10 @@
+import random
+
 from scipy.sparse import csr_matrix, hstack
 import numpy as np
 
 import baseline
+import base
 from baseline.processor import get_pred
 
 
@@ -34,8 +37,45 @@ class Processor(baseline.Processor):
         return example['id'], out
 
 
-class Sampler(baseline.Sampler):
-    pass
+class Sampler(base.Sampler):
+    def __init__(self, dataset, data_type, max_context_size=None, max_question_size=None, bucket=False, shuffle=False,
+                 max_ans_len=None, **kwargs):
+        super(Sampler, self).__init__(dataset, data_type)
+        if data_type == 'dev' or data_type == 'test':
+            max_context_size = None
+            max_question_size = None
+            max_ans_len = None
+            self.shuffle = False
+
+        self.max_context_size = max_context_size
+        self.max_question_size = max_question_size
+        self.shuffle = shuffle
+        self.max_ans_len = max_ans_len
+        self.bucket = bucket
+
+        idxs = tuple(idx for idx in range(len(dataset))
+                     if (max_context_size is None or len(dataset[idx]['context_spans']) <= max_context_size) and
+                     (max_question_size is None or len(dataset[idx]['question_spans']) <= max_question_size) and
+                     (max_ans_len is None or dataset[idx]['word_answer_ends'][0] - dataset[idx]['word_answer_starts'][
+                         0] < max_ans_len))
+        print('%s: using %d/%d examples' % (data_type, len(idxs), len(dataset)))
+
+        if shuffle:
+            idxs = random.sample(idxs, len(idxs))
+
+        if bucket:
+            if 'context_spans' in dataset[0]:
+                idxs = sorted(idxs, key=lambda idx: len(dataset[idx]['context_spans']))
+            else:
+                assert 'question_spans' in dataset[0]
+                idxs = sorted(idxs, key=lambda idx: len(dataset[idx]['question_spans']))
+        self._idxs = idxs
+
+    def __iter__(self):
+        return iter(self._idxs)
+
+    def __len__(self):
+        return len(self._idxs)
 
 
 class SparseTensor(object):
