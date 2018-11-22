@@ -191,7 +191,6 @@ class Model(baseline.Model):
         if phrase_filter:
             self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
 
-
     def forward(self,
                 context_char_idxs,
                 context_glove_idxs,
@@ -227,19 +226,21 @@ class Model(baseline.Model):
 
         logits1, logits2 = 0.0, 0.0
         if self.dense:
-            logits1 += torch.sum(x1 * q1.unsqueeze(1), 2) + mx
-            logits2 += torch.sum(x2 * q2.unsqueeze(1), 2) + mx
+            logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
+            logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
         if self.sparse:
-            logits1 += (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
-            logits2 += (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum([2, 3])
+            logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                [2, 3])
+            logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                [2, 3])
 
         if self.metric == 'l2':
             if self.dense:
-                logits1 += -0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
-                logits2 += -0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+                logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+                logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
             if self.sparse:
-                logits1 += -0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
-                logits2 += -0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+                logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
+                logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
@@ -254,7 +255,7 @@ class Model(baseline.Model):
 
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
-        prob *= mask
+        prob = prob * mask
         _, yp1 = prob.max(2)[0].max(1)
         _, yp2 = prob.max(1)[0].max(1)
 
@@ -416,6 +417,6 @@ class Loss(baseline.Loss):
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
         cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)
-        loss += cf * decoder_loss
+        loss = loss + cf * decoder_loss
 
         return loss

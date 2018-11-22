@@ -253,15 +253,15 @@ class Model(base.Model):
         logits2 = torch.sum(x2 * q2.unsqueeze(1), 2) + mx
 
         if self.metric == 'l2':
-            logits1 += -0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
-            logits2 += -0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+            logits1 = logits1 + -0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+            logits2 = logits2 + -0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
         prob = prob1.unsqueeze(2) * prob2.unsqueeze(1)
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
-        prob *= mask
+        prob = prob * mask
         _, yp1 = prob.max(2)[0].max(1)
         _, yp2 = prob.max(1)[0].max(1)
 
@@ -317,8 +317,8 @@ class Loss(base.Loss):
         self.cel = nn.CrossEntropyLoss()
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, **kwargs):
-        answer_word_starts -= 1
-        answer_word_ends -= 1
+        answer_word_starts = answer_word_starts - 1
+        answer_word_ends = answer_word_ends - 1
         loss1 = self.cel(logits1, answer_word_starts[:, 0])
         loss2 = self.cel(logits2, answer_word_ends[:, 0])
         loss = loss1 + loss2
