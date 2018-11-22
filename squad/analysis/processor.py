@@ -14,9 +14,13 @@ class Processor(baseline.Processor):
         self.depths['eval_context_word_idxs'] = 2
         self.depths['eval_context_glove_idxs'] = 2
         self.depths['eval_context_char_idxs'] = 3
+        self.max_eval_par = kwargs['max_eval_par']
         super(Processor, self).__init__(**kwargs)
 
     def postprocess_context(self, example, context_outputs):
+        if self.max_eval_par == 0:
+            context_outputs = [context_outputs]
+
         # Iterate (eval_len + 1) => last one is a positive one
         all_phrases = []
         all_out = None
@@ -108,13 +112,15 @@ class Processor(baseline.Processor):
             prepro_example['answer_word_ends'] = answer_word_ends
 
         # Added for additional evaluation contexts
-        if 'eval_context' in example:
+        if 'eval_context' in example and self.max_eval_par > 0:
             prepro_example['eval_context_spans'] = []
             prepro_example['eval_context_word_idxs'] = []
             prepro_example['eval_context_glove_idxs'] = []
             prepro_example['eval_context_char_idxs'] = []
 
-            for new_context in example['eval_context']:
+            for new_idx, new_context in enumerate(example['eval_context']):
+                if new_idx == self.max_eval_par:
+                    break
                 new_context_spans = self._word_tokenize(new_context)
                 new_context_words = tuple(new_context[span[0]:span[1]] for span in new_context_spans)
                 new_context_word_idxs = tuple(map(self._word2idx, new_context_words))

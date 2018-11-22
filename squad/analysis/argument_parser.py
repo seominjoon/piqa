@@ -13,6 +13,7 @@ class ArgumentParser(baseline.ArgumentParser):
         self.add_argument('--no_dense', default=False, action='store_true')
         self.add_argument('--gen_disc_ratio', type=float, default=0.0)
         self.add_argument('--loss_ratio_hl', type=float, default=6000)
+        self.add_argument('--max_eval_par', type=int, default=0)
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
