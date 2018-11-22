@@ -179,6 +179,9 @@ if __name__ == '__main__':
                                        if not (x in seen or seen_add(x))]
                                  for key, val in squad_docs.items()}
 
+            # For draft version
+            # squad = squad[:2]
+
             # Iterate dev-squad, and append retrieved docs
             open_context = set() # context for open-domain setting
             for item in tqdm(squad):

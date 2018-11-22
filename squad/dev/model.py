@@ -103,6 +103,30 @@ class QuestionBoundary(ContextBoundary):
         return {'dense': dense, 'sparse': sparse}
 
 
+class PhraseFilter(nn.Module):
+    def __init__(self, hidden_size, dropout):
+        super(PhraseFilter, self).__init__()
+        self.hidden_size = hidden_size
+        self.dropout = nn.Dropout(p=dropout)
+        self.linear11 = nn.Linear(hidden_size, hidden_size)
+        self.linear21 = nn.Linear(hidden_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.linear12 = nn.Linear(hidden_size, hidden_size)
+        self.linear22 = nn.Linear(hidden_size, hidden_size)
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x1, x2):
+        x1 = self.linear12(self.relu(self.linear11(self.dropout(x1))))
+        x2 = self.linear22(self.relu(self.linear21(self.dropout(x2))))
+        filter_logits = x1.matmul(x2.transpose(1, 2))
+        filter_sigmoid_prob = self.sigmoid(filter_logits)
+        filter_softmax_prob = self.softmax(filter_logits.view(filter_logits.size(0), -1)).view(*filter_logits.size())
+        return {'filter_logits': filter_logits,
+                'filter_sigmoid_prob': filter_sigmoid_prob,
+                'filter_softmax_prob': filter_softmax_prob}
+
+
 class Model(baseline.Model):
     def __init__(self,
                  char_vocab_size,
@@ -123,6 +147,7 @@ class Model(baseline.Model):
                  agg='max',
                  num_layers=1,
                  dual=False,
+                 phrase_filter=False,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -161,6 +186,11 @@ class Model(baseline.Model):
         if dual:
             self.decoder = Decoder(self.embedding.glove_embedding.embedding,
                                    2 * hidden_size * num_heads, num_layers, dropout)
+
+        self.phrase_filter = phrase_filter
+        if phrase_filter:
+            self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
+
 
     def forward(self,
                 context_char_idxs,
@@ -214,6 +244,14 @@ class Model(baseline.Model):
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
         prob = prob1.unsqueeze(2) * prob2.unsqueeze(1)
+
+        if self.phrase_filter:
+            pf = self.phrase_filter_model(x1, x2)
+            prob = prob * pf['filter_sigmoid_prob']
+            filter_logits = pf['filter_logits']
+        else:
+            filter_logits = None
+
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
         prob *= mask
@@ -222,6 +260,7 @@ class Model(baseline.Model):
 
         return_ = {'logits1': logits1,
                    'logits2': logits2,
+                   'filter_logits': filter_logits,
                    'yp1': yp1,
                    'yp2': yp2,
                    'x1': x1,
@@ -345,15 +384,28 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, dual, dual_init, dual_hl, **kwargs):
+    def __init__(self, dual, dual_init, dual_hl, phrase_filter, filter_init, **kwargs):
         super(Loss, self).__init__(**kwargs)
         self.dual = dual
         self.dual_init = dual_init
         self.dual_hl = dual_hl
+        self.phrase_filter = phrase_filter
+        self.filter_init = filter_init
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
-                decoder_logits1=None, decoder_logits2=None, step=None, **kwargs):
+                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None, **kwargs):
         loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
+        if self.phrase_filter:
+            answer_word_starts = answer_word_starts - 1
+            answer_word_ends = answer_word_ends - 1
+            eye = torch.eye(logits1.size(1)).to(logits1.device)
+            target1 = torch.embedding(eye, answer_word_starts[:, 0])
+            target2 = torch.embedding(eye, answer_word_ends[:, 0])
+            target = target1.unsqueeze(2) * target2.unsqueeze(1)
+            weight = target * logits1.size(1) ** 2
+            bcel = nn.BCEWithLogitsLoss(weight=weight.view(-1))
+            filter_loss = bcel(filter_logits.view(-1), target.view(-1))
+            loss = loss + self.filter_init * filter_loss
         if not self.dual:
             return loss
         decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),

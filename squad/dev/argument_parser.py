@@ -16,6 +16,9 @@ class ArgumentParser(baseline.ArgumentParser):
         self.add_argument('--dual_init', type=float, default=5.0)
         self.add_argument('--dual_hl', type=float, default=10000)
 
+        self.add_argument('--phrase_filter', default=False, action='store_true')
+        self.add_argument('--filter_init', type=float, default=0.1)
+
     def parse_args(self, **kwargs):
         args = super().parse_args()
 
