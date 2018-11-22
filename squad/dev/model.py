@@ -148,6 +148,7 @@ class Model(baseline.Model):
                  num_layers=1,
                  dual=False,
                  phrase_filter=False,
+                 filter_th=0.0,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -190,6 +191,7 @@ class Model(baseline.Model):
         self.phrase_filter = phrase_filter
         if phrase_filter:
             self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
+            self.filter_th = filter_th
 
     def forward(self,
                 context_char_idxs,
@@ -248,7 +250,10 @@ class Model(baseline.Model):
 
         if self.phrase_filter:
             pf = self.phrase_filter_model(x1, x2)
-            prob = prob * pf['filter_sigmoid_prob']
+            if self.training:
+                prob = prob * pf['filter_sigmoid_prob']
+            else:
+                prob = prob * (pf['filter_sigmoid_prob'] >= self.filter_th).float()
             filter_logits = pf['filter_logits']
         else:
             filter_logits = None
@@ -287,6 +292,14 @@ class Model(baseline.Model):
             decoder_logits2 = self.decoder(init2, question_idxs=question_glove_idxs)
             return_['decoder_logits1'] = decoder_logits1
             return_['decoder_logits2'] = decoder_logits2
+
+        if self.phrase_filter:
+            context_len = (context_glove_idxs > 0).sum(1)
+            nvpws = []
+            for th in (25, 50, 75):
+                nvpw = (pf['filter_sigmoid_prob'] > th/100.0).float().sum([1, 2]) / context_len.float()
+                return_['nvpw%2r' % th] = nvpw
+                nvpws.append(nvpw.mean().item())
 
         return return_
 
@@ -403,7 +416,7 @@ class Loss(baseline.Loss):
             target1 = torch.embedding(eye, answer_word_starts[:, 0])
             target2 = torch.embedding(eye, answer_word_ends[:, 0])
             target = target1.unsqueeze(2) * target2.unsqueeze(1)
-            weight = target * logits1.size(1) ** 2
+            weight = target * logits1.size(1) ** 2 + (1.0 - target)
             bcel = nn.BCEWithLogitsLoss(weight=weight.view(-1))
             filter_loss = bcel(filter_logits.view(-1), target.view(-1))
             loss = loss + self.filter_init * filter_loss
