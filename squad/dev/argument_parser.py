@@ -18,6 +18,7 @@ class ArgumentParser(baseline.ArgumentParser):
 
         self.add_argument('--phrase_filter', default=False, action='store_true')
         self.add_argument('--filter_init', type=float, default=0.1)
+        self.add_argument('--filter_th', type=float, default=0.0)
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
