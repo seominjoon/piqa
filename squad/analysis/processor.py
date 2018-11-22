@@ -149,7 +149,7 @@ class Processor(dev.Processor):
                 tensors['question_elmo_idxs'] = character_ids
 
             # Added
-            if 'eval_context' in examples[0]:
+            if 'eval_context_spans' in examples[0]:
                 sentences = [[[ex[sp[0]:sp[1]] for sp in span]
                     for (ex, span) in zip(example['eval_context'],
                                           example['eval_context_spans'])]
