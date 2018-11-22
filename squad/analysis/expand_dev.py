@@ -18,6 +18,12 @@ from tqdm import tqdm
 def _load_squad(squad_path, draft=False):
     with open(squad_path, 'r') as fp:
         squad = json.load(fp)
+
+        # Remove questions (copied from ../split.py)
+        for article in squad['data']:
+            for para in article['paragraphs']:
+                del para['qas']
+
         examples = []
         for article in squad['data']:
             for para_idx, paragraph in enumerate(article['paragraphs']):
@@ -28,38 +34,11 @@ def _load_squad(squad_path, draft=False):
                 else:
                     context_example = {}
 
-                if 'qas' in paragraph:
-                    for question_idx, qa in enumerate(paragraph['qas']):
-                        id_ = qa['id']
-                        qid = '%s_%d' % (cid, question_idx)
-                        question = qa['question']
-                        question_example = {'id': id_, 'qid': qid, 
-                                            'question': question}
-                        if 'answers' in qa:
-                            answers, answer_starts, answer_ends = [], [], []
-                            for answer in qa['answers']:
-                                answer_start = answer['answer_start']
-                                answer_end = answer_start + len(answer['text'])
-                                answers.append(answer['text'])
-                                answer_starts.append(answer_start)
-                                answer_ends.append(answer_end)
-                            answer_example = {'answers': answers, 
-                                              'answer_starts': answer_starts,
-                                              'answer_ends': answer_ends}
-                            question_example.update(answer_example)
-
-                        example = {'idx': len(examples)}
-                        example.update(context_example)
-                        example.update(question_example)
-                        examples.append(example)
-                        if draft and len(examples) == 100:
-                            return examples
-                else:
-                    example = {'idx': len(examples)}
-                    example.update(context_example)
-                    examples.append(example)
-                    if draft and len(examples) == 100:
-                        return examples
+                example = {'idx': len(examples)}
+                example.update(context_example)
+                examples.append(example)
+                if draft and len(examples) == 100:
+                    return examples
         return examples
 
 
@@ -111,11 +90,8 @@ if __name__ == '__main__':
     parser.add_argument('--num-workers', type=int, default=4,
                         help='Number of process workers')
     parser.add_argument('--find-docs', default=False, action='store_true') 
+    parser.add_argument('--draft', default=False, action='store_true')
     args = parser.parse_args()
-
-    # Load SQuAD data
-    dev_data = _load_squad(args.data_path)
-    print('Data from {} with size {}'.format(args.data_path, len(dev_data)))
 
     # Load DrQA retriever
     from drqa import retriever, tokenizers
@@ -123,6 +99,10 @@ if __name__ == '__main__':
 
     # Find top n docs?
     if args.find_docs:
+
+        # Load SQuAD data
+        dev_data = _load_squad(args.data_path)
+        print('Data from {} with size {}'.format(args.data_path, len(dev_data)))
 
         # Test retriever
         ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
@@ -180,7 +160,8 @@ if __name__ == '__main__':
                                  for key, val in squad_docs.items()}
 
             # For draft version
-            # squad = squad[:2]
+            if args.draft:
+                squad = squad[:2]
 
             # Iterate dev-squad, and append retrieved docs
             open_context = set() # context for open-domain setting
@@ -233,7 +214,7 @@ if __name__ == '__main__':
 
         cache = {}
         for item in tqdm(squad):
-            # Use cache for duplicate contexts
+            # Use cache for duplicate contexts (deprecated since rm 'qas')
             if item['context'] not in cache:
 
                 # Calculate sparse vectors, and TF-IDF scores 
@@ -263,11 +244,11 @@ if __name__ == '__main__':
 
         # Check integrity and save
         # print(squad[5])
-        with open('dev-v1.1-top{}-eval-par{}.json'.format(args.n_docs,
-                  args.n_pars), 'w') as f:
+        with open('dev-v1.1-top{}-eval-par{}{}.json'.format(args.n_docs,
+                  args.n_pars, '-draft' if args.draft else ''), 'w') as f:
             json.dump(squad, f)
-        with open('dev-v1.1-top{}-open-doc{}.json'.format(args.n_docs,
-                  args.n_docs_max), 'w') as f:
+        with open('dev-v1.1-top{}-open-doc{}{}.json'.format(args.n_docs,
+                  args.n_docs_max, '-draft' if args.draft else ''), 'w') as f:
             json.dump(list(open_context), f)
         print('SQuAD development set augmentation done.')
 
