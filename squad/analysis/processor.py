@@ -1,12 +1,12 @@
 from scipy.sparse import csr_matrix, hstack
 import numpy as np
 
-import baseline
+import dev
 import torch
 from baseline.processor import get_pred, _get_shape, _fill_tensor
 
 
-class Processor(baseline.Processor):
+class Processor(dev.Processor):
     def __init__(self, **kwargs):
         self.keys.add('eval_context_word_idxs')
         self.keys.add('eval_context_glove_idxs')
@@ -14,9 +14,13 @@ class Processor(baseline.Processor):
         self.depths['eval_context_word_idxs'] = 2
         self.depths['eval_context_glove_idxs'] = 2
         self.depths['eval_context_char_idxs'] = 3
+        self.max_eval_par = kwargs['max_eval_par']
         super(Processor, self).__init__(**kwargs)
 
     def postprocess_context(self, example, context_outputs):
+        if self.max_eval_par == 0:
+            context_outputs = [context_outputs]
+
         # Iterate (eval_len + 1) => last one is a positive one
         all_phrases = []
         all_out = None
@@ -51,17 +55,6 @@ class Processor(baseline.Processor):
                                                             axis=0)
 
         return example['cid'], all_phrases, all_out, metadata
-
-    def postprocess_question(self, example, question_output):
-        dense, sparse = question_output
-        out = dense.cpu().numpy()
-        if self._emb_type == 'sparse' or sparse is not None:
-            out = csr_matrix(out)
-            if sparse is not None:
-                idx, val, max_ = sparse
-                sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
-                out = hstack([out, sparse_tensor.scipy()])
-        return example['id'], out
 
     # Override to process 'eval_context'
     def preprocess(self, example):
@@ -108,13 +101,15 @@ class Processor(baseline.Processor):
             prepro_example['answer_word_ends'] = answer_word_ends
 
         # Added for additional evaluation contexts
-        if 'eval_context' in example:
+        if 'eval_context' in example and self.max_eval_par > 0:
             prepro_example['eval_context_spans'] = []
             prepro_example['eval_context_word_idxs'] = []
             prepro_example['eval_context_glove_idxs'] = []
             prepro_example['eval_context_char_idxs'] = []
 
-            for new_context in example['eval_context']:
+            for new_idx, new_context in enumerate(example['eval_context']):
+                if new_idx == self.max_eval_par:
+                    break
                 new_context_spans = self._word_tokenize(new_context)
                 new_context_words = tuple(new_context[span[0]:span[1]] for span in new_context_spans)
                 new_context_word_idxs = tuple(map(self._word2idx, new_context_words))
@@ -165,19 +160,5 @@ class Processor(baseline.Processor):
         return tensors
 
 
-class Sampler(baseline.Sampler):
+class Sampler(dev.Sampler):
     pass
-
-
-class SparseTensor(object):
-    def __init__(self, idx, val, max_=None):
-        self.idx = idx
-        self.val = val
-        self.max = max_
-
-    def scipy(self):
-        col = self.idx.flatten()
-        row = np.tile(np.expand_dims(range(self.idx.shape[0]), 1), [1, self.idx.shape[1]]).flatten()
-        data = self.val.flatten()
-        shape = None if self.max is None else [self.idx.shape[0], self.max]
-        return csr_matrix((data, (row, col)), shape=shape)
