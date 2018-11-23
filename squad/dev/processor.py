@@ -7,7 +7,7 @@ from baseline.processor import get_pred
 
 class Processor(baseline.Processor):
     def postprocess_context(self, example, context_output):
-        pos_tuple, dense, sparse_ = context_output
+        pos_tuple, dense, sparse_, fsp = context_output
         out = dense.cpu().numpy()
         context = example['context']
         context_spans = example['context_spans']
@@ -18,8 +18,13 @@ class Processor(baseline.Processor):
                 idx, val, max_ = sparse_
                 sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
                 out = hstack([out, sparse_tensor.scipy()])
+        if fsp is None:
+            probs = None
+        else:
+            probs = [round(a, 4) for a in fsp.tolist()]
         metadata = {'context': context,
-                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+                    'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple),
+                    'probs': probs}
         return example['cid'], phrases, out, metadata
 
     def postprocess_question(self, example, question_output):
