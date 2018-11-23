@@ -96,7 +96,7 @@ def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, metr
             c_emb = c_emb['arr_0']
             if metric == 'ip':
                 sim = np.matmul(c_emb, q_emb.T)
-                print(c_emb.shape, q_emb.shape)
+                # print(c_emb.shape, q_emb.shape)
                 m = sim.max(1)
             elif metric == 'cosine':
                 c_emb = c_emb / numpy.linalg.norm(c_emb, ord=2, axis=1, keepdims=True)
@@ -185,7 +185,7 @@ def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, 
             c_emb = c_emb['arr_0']
             if metric == 'ip':
                 sim = np.matmul(c_emb, q_emb_mat.T)
-                print(c_emb.shape, q_emb_mat.shape)
+                # print(c_emb.shape, q_emb_mat.shape)
                 # m = sim.max(1) # Multiple query not allowed
                 m = sim
             elif metric == 'cosine':

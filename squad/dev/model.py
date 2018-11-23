@@ -323,6 +323,11 @@ class Model(baseline.Model):
             fsp_list = []
             for i in range(lb):
                 for j in range(i, min(i + self.max_ans_len, lb)):
+                    if self.phrase_filter:
+                        prob = pf['filter_sigmoid_prob'][k, i, j]
+                        if prob < self.filter_th:
+                            continue
+                        fsp_list.append(prob)
                     vec = torch.cat([x1b[i], x2b[j]], 0)
                     pos_list.append((i, j))
                     vec_list.append(vec)
@@ -331,8 +336,6 @@ class Model(baseline.Model):
                         idx = torch.cat([xsi1b[:lb], xsi2b[:lb] + 400002], 0)
                         sparse_list.append(sparse)
                         idx_list.append(idx)
-                    if self.phrase_filter:
-                        fsp_list.append(pf['filter_sigmoid_prob'][k, i, j])
 
             dense = torch.stack(vec_list, 0)
             if xs1 is None:
