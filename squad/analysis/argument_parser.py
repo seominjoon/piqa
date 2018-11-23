@@ -9,7 +9,7 @@ class ArgumentParser(dev.ArgumentParser):
         super().add_arguments()
 
         self.add_argument('--max_eval_par', type=int, default=0)
-        self.add_argument('--analysis', type=str, default='eval',
+        self.add_argument('--analysis', type=str, default='',
                           help='eval|open')
 
     def parse_args(self, **kwargs):

@@ -89,7 +89,10 @@ if __name__ == '__main__':
                         help='Number of closest paragraphs')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='Number of process workers')
-    parser.add_argument('--find-docs', default=False, action='store_true') 
+    parser.add_argument('--find-docs', default=False, action='store_true',
+                        help='True to find closest docs') 
+    parser.add_argument('--par-open', default=False, action='store_true',
+                        help='True to set n-docs-max as n-pars')
     parser.add_argument('--draft', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -175,7 +178,7 @@ if __name__ == '__main__':
                     eval_context.append(par)
                     open_context.update([par])
                 assert item['context'] in open_context
-                assert item['context'] in eval_context
+                assert item['context'] in eval_context # will be removed
 
                 # Iterate each closest doc with its text
                 doc_counter = 0
@@ -196,7 +199,8 @@ if __name__ == '__main__':
                         # Or, use what we've retrieved
                         else:
                             eval_context.append(split)
-                            open_context.update([split])
+                            if not args.par_open:
+                                open_context.update([split])
 
                     doc_counter += 1
                     if doc_counter == args.n_docs_max:
@@ -242,13 +246,23 @@ if __name__ == '__main__':
             else:
                 item['eval_context'] = cache[item['context']][:]
 
+            if args.par_open:
+                open_context.update(item['eval_context'])
+
         # Check integrity and save
         # print(squad[5])
         with open('dev-v1.1-top{}-eval-par{}{}.json'.format(args.n_docs,
                   args.n_pars, '-draft' if args.draft else ''), 'w') as f:
             json.dump(squad, f)
-        with open('dev-v1.1-top{}-open-doc{}{}.json'.format(args.n_docs,
-                  args.n_docs_max, '-draft' if args.draft else ''), 'w') as f:
-            json.dump(list(open_context), f)
+        if not args.par_open:
+            with open('dev-v1.1-top{}-open-doc{}{}.json'.format(args.n_docs,
+                      args.n_docs_max, 
+                      '-draft' if args.draft else ''), 'w') as f:
+                json.dump(list(open_context), f)
+        else:
+            with open('dev-v1.1-top{}-open-par{}{}.json'.format(args.n_docs,
+                      args.n_pars, 
+                      '-draft' if args.draft else ''), 'w') as f:
+                json.dump(list(open_context), f)
         print('SQuAD development set augmentation done.')
 
