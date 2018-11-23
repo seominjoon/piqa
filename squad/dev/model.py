@@ -254,9 +254,6 @@ class Model(baseline.Model):
                 prob = prob * pf['filter_sigmoid_prob']
             else:
                 prob = prob * (pf['filter_sigmoid_prob'] >= self.filter_th).float()
-            filter_logits = pf['filter_logits']
-        else:
-            filter_logits = None
 
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
@@ -266,7 +263,6 @@ class Model(baseline.Model):
 
         return_ = {'logits1': logits1,
                    'logits2': logits2,
-                   'filter_logits': filter_logits,
                    'yp1': yp1,
                    'yp2': yp2,
                    'x1': x1,
@@ -300,6 +296,8 @@ class Model(baseline.Model):
                 nvpw = (pf['filter_sigmoid_prob'] > th/100.0).float().sum([1, 2]) / context_len.float()
                 return_['nvpw%2r' % th] = nvpw
                 nvpws.append(nvpw.mean().item())
+            return_['filter_logits'] = pf['filter_logits']
+            return_['filter_sigmoid_prob'] = pf['filter_sigmoid_prob']
 
         return return_
 
@@ -311,6 +309,8 @@ class Model(baseline.Model):
         x1, xs1, xsi1 = xd1['dense'], xd1['sparse'], context_glove_idxs
         xd2 = self.context_end(x, mx)
         x2, xs2, xsi2 = xd2['dense'], xd2['sparse'], context_glove_idxs
+        if self.phrase_filter:
+            pf = self.phrase_filter_model(x1, x2)
         out = []
         for k, (lb, x1b, x2b) in enumerate(zip(l, x1, x2)):
             if xs1 is not None:
@@ -320,6 +320,7 @@ class Model(baseline.Model):
                 idx_list = []
             pos_list = []
             vec_list = []
+            fsp_list = []
             for i in range(lb):
                 for j in range(i, min(i + self.max_ans_len, lb)):
                     vec = torch.cat([x1b[i], x2b[j]], 0)
@@ -330,6 +331,8 @@ class Model(baseline.Model):
                         idx = torch.cat([xsi1b[:lb], xsi2b[:lb] + 400002], 0)
                         sparse_list.append(sparse)
                         idx_list.append(idx)
+                    if self.phrase_filter:
+                        fsp_list.append(pf['filter_sigmoid_prob'][k, i, j])
 
             dense = torch.stack(vec_list, 0)
             if xs1 is None:
@@ -338,7 +341,11 @@ class Model(baseline.Model):
                 sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
                 idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
                 sparse = (idx_cat, sparse_cat, 800004)
-            out.append((tuple(pos_list), dense, sparse))
+            if self.phrase_filter:
+                fsp_stack = torch.stack(fsp_list, 0)
+            else:
+                fsp_stack = None
+            out.append((tuple(pos_list), dense, sparse, fsp_stack))
         return tuple(out)
 
     def get_question(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None,
