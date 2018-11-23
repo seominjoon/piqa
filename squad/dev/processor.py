@@ -25,7 +25,6 @@ class Processor(baseline.Processor):
         metadata = {'context': context,
                     'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple),
                     'probs': probs}
-        print(example.keys())
         return example['cid'], phrases, out, metadata
 
     def postprocess_question(self, example, question_output):
