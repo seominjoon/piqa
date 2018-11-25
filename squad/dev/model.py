@@ -161,6 +161,7 @@ class Model(baseline.Model):
                  dual=False,
                  phrase_filter=False,
                  filter_th=0.0,
+                 multimodal=False,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -205,6 +206,15 @@ class Model(baseline.Model):
             self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
             self.filter_th = filter_th
 
+        self.multimodal = multimodal
+        if multimodal:
+            self.context_start2 = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                  sparse_activation=sparse_activation, num_layers=num_layers,
+                                                  normalize=normalize)
+            self.context_end2 = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                sparse_activation=sparse_activation, num_layers=num_layers,
+                                                normalize=normalize)
+
         if self.metric == 'mlp':
             self.mlp1 = DoubleLinear(4 * hidden_size * num_heads, hidden_size * num_heads, 1)
             self.mlp2 = DoubleLinear(4 * hidden_size * num_heads, hidden_size * num_heads, 1)
@@ -219,6 +229,8 @@ class Model(baseline.Model):
                 context_elmo_idxs=None,
                 question_elmo_idxs=None,
                 num_samples=None,
+                answer_word_starts=None,
+                answer_word_ends=None,
                 **kwargs):
         q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
         x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
@@ -239,6 +251,27 @@ class Model(baseline.Model):
         hd2 = self.context_end(x, mx)
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
+
+        if self.multimodal:
+            hd1m = self.context_start2(x, mx)
+            hd2m = self.context_end2(x, mx)
+            x1m, xs1m = hd1m['dense'], hd1m['sparse']
+            x2m, xs2m = hd2m['dense'], hd2m['sparse']
+            x1 = torch.cat([x1, x1m], 0)
+            x2 = torch.cat([x2, x2m], 0)
+            q1 = torch.cat([q1, q1], 0)
+            q2 = torch.cat([q2, q2], 0)
+            mx = torch.cat([mx, mx], 0)
+            if self.sparse:
+                xs1 = torch.cat([xs1, xs1m], 0)
+                xs2 = torch.cat([xs2, xs2m], 0)
+                qs1 = torch.cat([qs1, qs1], 0)
+                qs2 = torch.cat([qs2, qs2], 0)
+                mxq = torch.cat([mxq, mxq], 0)
+            if self.dual:
+                answer_word_starts = torch.cat([answer_word_starts, answer_word_starts], 0)
+                answer_word_ends = torch.cat([answer_word_ends, answer_word_ends], 0)
+                question_glove_idxs = torch.cat([question_glove_idxs, question_glove_idxs], 0)
 
         if self.metric in ('ip', 'cosine', 'l2'):
             logits1, logits2 = 0.0, 0.0
@@ -278,8 +311,14 @@ class Model(baseline.Model):
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
         prob = prob * mask
-        _, yp1 = prob.max(2)[0].max(1)
-        _, yp2 = prob.max(1)[0].max(1)
+
+        if self.multimodal:
+            prob = torch.max(*prob.chunk(2, dim=0))
+            _, yp1 = prob.max(2)[0].max(1)
+            _, yp2 = prob.max(1)[0].max(1)
+        else:
+            _, yp1 = prob.max(2)[0].max(1)
+            _, yp2 = prob.max(1)[0].max(1)
 
         return_ = {'logits1': logits1,
                    'logits2': logits2,
@@ -299,8 +338,6 @@ class Model(baseline.Model):
                    'qsi2': question_glove_idxs}
 
         if self.dual:
-            answer_word_starts = kwargs['answer_word_starts']
-            answer_word_ends = kwargs['answer_word_ends']
             eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
             init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
             init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
@@ -313,7 +350,7 @@ class Model(baseline.Model):
             context_len = (context_glove_idxs > 0).sum(1)
             nvpws = []
             for th in (25, 50, 75):
-                nvpw = (pf['filter_sigmoid_prob'] > th/100.0).float().sum([1, 2]) / context_len.float()
+                nvpw = (pf['filter_sigmoid_prob'] > th / 100.0).float().sum([1, 2]) / context_len.float()
                 return_['nvpw%2r' % th] = nvpw
                 nvpws.append(nvpw.mean().item())
             return_['filter_logits'] = pf['filter_logits']
@@ -428,16 +465,21 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, dual, dual_init, dual_hl, phrase_filter, filter_init, **kwargs):
+    def __init__(self, dual, dual_init, dual_hl, phrase_filter, filter_init, multimodal, **kwargs):
         super(Loss, self).__init__(**kwargs)
         self.dual = dual
         self.dual_init = dual_init
         self.dual_hl = dual_hl
         self.phrase_filter = phrase_filter
         self.filter_init = filter_init
+        self.multimodal = multimodal
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
                 decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None, **kwargs):
+        if self.multimodal:
+            answer_word_starts = torch.cat([answer_word_starts, answer_word_starts], 0)
+            answer_word_ends = torch.cat([answer_word_ends, answer_word_ends], 0)
+            question_glove_idxs = torch.cat([question_glove_idxs, question_glove_idxs], 0)
         loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
         if self.phrase_filter:
             answer_word_starts = answer_word_starts - 1
