@@ -215,8 +215,8 @@ class Model(baseline.Model):
                                                 normalize=normalize)
 
         if self.metric == 'mlp':
-            self.mlp1 = DoubleLinear(4 * hidden_size * num_heads, hidden_size * num_heads, 1)
-            self.mlp2 = DoubleLinear(4 * hidden_size * num_heads, hidden_size * num_heads, 1)
+            self.mlp1 = DoubleLinear(6 * hidden_size * num_heads, hidden_size * num_heads, 1)
+            self.mlp2 = DoubleLinear(6 * hidden_size * num_heads, hidden_size * num_heads, 1)
 
     def forward(self,
                 context_char_idxs,
@@ -291,8 +291,10 @@ class Model(baseline.Model):
                     logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
                     logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
         elif self.metric == 'mlp':
-            concat1 = torch.cat([x1, q1.unsqueeze(1).repeat(1, x1.size(1), 1)], 2)
-            concat2 = torch.cat([x2, q2.unsqueeze(1).repeat(1, x2.size(1), 1)], 2)
+            q1a = q1.unsqueeze(1).repeat(1, x1.size(1), 1)
+            q2a = q2.unsqueeze(1).repeat(1, x2.size(1), 1)
+            concat1 = torch.cat([x1, q1a, x1 * q1a], 2)
+            concat2 = torch.cat([x2, q2a, x2 * q2a], 2)
             logits1 = self.mlp1(concat1).squeeze(2)
             logits2 = self.mlp2(concat2).squeeze(2)
 
