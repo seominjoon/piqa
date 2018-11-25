@@ -20,6 +20,8 @@ class ArgumentParser(baseline.ArgumentParser):
         self.add_argument('--filter_init', type=float, default=0.1)
         self.add_argument('--filter_th', type=float, default=0.0)
 
+        self.add_argument('--multimodal', default=False, action='store_true')
+
     def parse_args(self, **kwargs):
         args = super().parse_args()
 
