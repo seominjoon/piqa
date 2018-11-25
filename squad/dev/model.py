@@ -127,6 +127,18 @@ class PhraseFilter(nn.Module):
                 'filter_softmax_prob': filter_softmax_prob}
 
 
+class DoubleLinear(nn.Module):
+    def __init__(self, in_size, mid_size, out_size):
+        super(DoubleLinear, self).__init__()
+        self.ln = nn.LayerNorm(in_size)
+        self.linear1 = nn.Linear(in_size, mid_size)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(mid_size, out_size)
+
+    def forward(self, in_):
+        return self.linear2(self.relu(self.linear1(self.ln(in_))))
+
+
 class Model(baseline.Model):
     def __init__(self,
                  char_vocab_size,
@@ -193,6 +205,10 @@ class Model(baseline.Model):
             self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
             self.filter_th = filter_th
 
+        if self.metric == 'mlp':
+            self.mlp1 = DoubleLinear(4 * hidden_size * num_heads, hidden_size * num_heads, 1)
+            self.mlp2 = DoubleLinear(4 * hidden_size * num_heads, hidden_size * num_heads, 1)
+
     def forward(self,
                 context_char_idxs,
                 context_glove_idxs,
@@ -224,25 +240,29 @@ class Model(baseline.Model):
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
 
-        assert self.metric in ('ip', 'cosine', 'l2')
-
-        logits1, logits2 = 0.0, 0.0
-        if self.dense:
-            logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
-            logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
-        if self.sparse:
-            logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
-                [2, 3])
-            logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
-                [2, 3])
-
-        if self.metric == 'l2':
+        if self.metric in ('ip', 'cosine', 'l2'):
+            logits1, logits2 = 0.0, 0.0
             if self.dense:
-                logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
-                logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+                logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
+                logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
             if self.sparse:
-                logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
-                logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+                logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                    [2, 3])
+                logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                    [2, 3])
+
+            if self.metric == 'l2':
+                if self.dense:
+                    logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+                    logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+                if self.sparse:
+                    logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
+                    logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+        elif self.metric == 'mlp':
+            concat1 = torch.cat([x1, q1.unsqueeze(1).repeat(1, x1.size(1), 1)], 2)
+            concat2 = torch.cat([x2, q2.unsqueeze(1).repeat(1, x2.size(1), 1)], 2)
+            logits1 = self.mlp1(concat1).squeeze(2)
+            logits2 = self.mlp2(concat2).squeeze(2)
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
