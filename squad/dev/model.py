@@ -131,7 +131,7 @@ class DoubleLinear(nn.Module):
     def __init__(self, in_size, mid_size, out_size):
         super(DoubleLinear, self).__init__()
         self.linear1 = nn.Linear(in_size, mid_size)
-        self.relu = nn.ReLU()
+        self.relu = nn.Tanh()
         self.linear2 = nn.Linear(mid_size, out_size)
 
     def forward(self, in_):
@@ -291,6 +291,7 @@ class Model(baseline.Model):
                     logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
                     logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
         elif self.metric == 'mlp':
+            assert not self.sparse
             q1a = q1.unsqueeze(1).repeat(1, x1.size(1), 1)
             q2a = q2.unsqueeze(1).repeat(1, x2.size(1), 1)
             concat1 = torch.cat([x1, q1a, x1 * q1a], 2)
