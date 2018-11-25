@@ -130,13 +130,12 @@ class PhraseFilter(nn.Module):
 class DoubleLinear(nn.Module):
     def __init__(self, in_size, mid_size, out_size):
         super(DoubleLinear, self).__init__()
-        self.ln = nn.LayerNorm(in_size)
         self.linear1 = nn.Linear(in_size, mid_size)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(mid_size, out_size)
 
     def forward(self, in_):
-        return self.linear2(self.relu(self.linear1(self.ln(in_))))
+        return self.linear2(self.relu(self.linear1(in_)))
 
 
 class Model(baseline.Model):
