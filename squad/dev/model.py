@@ -127,6 +127,17 @@ class PhraseFilter(nn.Module):
                 'filter_softmax_prob': filter_softmax_prob}
 
 
+class DoubleLinear(nn.Module):
+    def __init__(self, in_size, mid_size, out_size):
+        super(DoubleLinear, self).__init__()
+        self.linear1 = nn.Linear(in_size, mid_size)
+        self.relu = nn.Tanh()
+        self.linear2 = nn.Linear(mid_size, out_size)
+
+    def forward(self, in_):
+        return self.linear2(self.relu(self.linear1(in_)))
+
+
 class Model(baseline.Model):
     def __init__(self,
                  char_vocab_size,
@@ -149,6 +160,8 @@ class Model(baseline.Model):
                  dual=False,
                  phrase_filter=False,
                  filter_th=0.0,
+                 multimodal=False,
+                 num_mods=1,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -193,6 +206,23 @@ class Model(baseline.Model):
             self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
             self.filter_th = filter_th
 
+        self.multimodal = multimodal
+        if multimodal:
+            self.num_mods = num_mods
+            for i in range(num_mods):
+                self.add_module('context_start%d' % i,
+                                ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                sparse_activation=sparse_activation, num_layers=num_layers,
+                                                normalize=normalize))
+                self.add_module('context_end%d' % i,
+                                ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                sparse_activation=sparse_activation, num_layers=num_layers,
+                                                normalize=normalize))
+
+        if self.metric == 'mlp':
+            self.mlp1 = nn.Linear(6 * hidden_size * num_heads, 1)
+            self.mlp2 = nn.Linear(6 * hidden_size * num_heads, 1)
+
     def forward(self,
                 context_char_idxs,
                 context_glove_idxs,
@@ -203,6 +233,8 @@ class Model(baseline.Model):
                 context_elmo_idxs=None,
                 question_elmo_idxs=None,
                 num_samples=None,
+                answer_word_starts=None,
+                answer_word_ends=None,
                 **kwargs):
         q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
         x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
@@ -224,25 +256,60 @@ class Model(baseline.Model):
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
 
-        assert self.metric in ('ip', 'cosine', 'l2')
-
-        logits1, logits2 = 0.0, 0.0
-        if self.dense:
-            logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
-            logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
-        if self.sparse:
-            logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
-                [2, 3])
-            logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
-                [2, 3])
-
-        if self.metric == 'l2':
-            if self.dense:
-                logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
-                logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+        if self.multimodal:
+            modules = dict(self.named_children())
+            x1m, x2m, xs1m, xs2m = [], [], [], []
+            for i in range(self.num_mods):
+                hd1c = modules['context_start%d' % i](x, mx)
+                hd2c = modules['context_end%d' % i](x, mx)
+                x1c, xs1c = hd1c['dense'], hd1c['sparse']
+                x2c, xs2c = hd2c['dense'], hd2c['sparse']
+                x1m.append(x1c)
+                x2m.append(x2c)
+                xs1m.append(xs1c)
+                xs2m.append(xs2c)
+            x1 = torch.cat([x1] + x1m, 0)
+            x2 = torch.cat([x2] + x2m, 0)
+            q1 = torch.cat([q1] * (self.num_mods + 1), 0)
+            q2 = torch.cat([q2] * (self.num_mods + 1), 0)
+            mx = torch.cat([mx] * (self.num_mods + 1), 0)
             if self.sparse:
-                logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
-                logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+                xs1 = torch.cat([xs1] + xs1m, 0)
+                xs2 = torch.cat([xs2] + xs2m, 0)
+                qs1 = torch.cat([qs1] * (self.num_mods + 1), 0)
+                qs2 = torch.cat([qs2] * (self.num_mods + 1), 0)
+                mxq = torch.cat([mxq] * (self.num_mods + 1), 0)
+            if self.dual:
+                answer_word_starts = torch.cat([answer_word_starts, answer_word_starts], 0)
+                answer_word_ends = torch.cat([answer_word_ends, answer_word_ends], 0)
+                question_glove_idxs = torch.cat([question_glove_idxs, question_glove_idxs], 0)
+
+        if self.metric in ('ip', 'cosine', 'l2'):
+            logits1, logits2 = 0.0, 0.0
+            if self.dense:
+                logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
+                logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
+            if self.sparse:
+                logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                    [2, 3])
+                logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                    [2, 3])
+
+            if self.metric == 'l2':
+                if self.dense:
+                    logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+                    logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+                if self.sparse:
+                    logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
+                    logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+        elif self.metric == 'mlp':
+            assert not self.sparse
+            q1a = q1.unsqueeze(1).repeat(1, x1.size(1), 1)
+            q2a = q2.unsqueeze(1).repeat(1, x2.size(1), 1)
+            concat1 = torch.cat([x1, q1a, x1 * q1a], 2)
+            concat2 = torch.cat([x2, q2a, x2 * q2a], 2)
+            logits1 = self.mlp1(concat1).squeeze(2) + mx
+            logits2 = self.mlp2(concat2).squeeze(2) + mx
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
@@ -258,8 +325,14 @@ class Model(baseline.Model):
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
         prob = prob * mask
-        _, yp1 = prob.max(2)[0].max(1)
-        _, yp2 = prob.max(1)[0].max(1)
+
+        if self.multimodal:
+            prob = torch.stack(prob.chunk(self.num_mods + 1, dim=0)).max(0)[0]
+            _, yp1 = prob.max(2)[0].max(1)
+            _, yp2 = prob.max(1)[0].max(1)
+        else:
+            _, yp1 = prob.max(2)[0].max(1)
+            _, yp2 = prob.max(1)[0].max(1)
 
         return_ = {'logits1': logits1,
                    'logits2': logits2,
@@ -279,8 +352,6 @@ class Model(baseline.Model):
                    'qsi2': question_glove_idxs}
 
         if self.dual:
-            answer_word_starts = kwargs['answer_word_starts']
-            answer_word_ends = kwargs['answer_word_ends']
             eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
             init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
             init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
@@ -293,7 +364,7 @@ class Model(baseline.Model):
             context_len = (context_glove_idxs > 0).sum(1)
             nvpws = []
             for th in (25, 50, 75):
-                nvpw = (pf['filter_sigmoid_prob'] > th/100.0).float().sum([1, 2]) / context_len.float()
+                nvpw = (pf['filter_sigmoid_prob'] > th / 100.0).float().sum([1, 2]) / context_len.float()
                 return_['nvpw%2r' % th] = nvpw
                 nvpws.append(nvpw.mean().item())
             return_['filter_logits'] = pf['filter_logits']
@@ -323,6 +394,11 @@ class Model(baseline.Model):
             fsp_list = []
             for i in range(lb):
                 for j in range(i, min(i + self.max_ans_len, lb)):
+                    if self.phrase_filter:
+                        prob = pf['filter_sigmoid_prob'][k, i, j]
+                        if prob < self.filter_th:
+                            continue
+                        fsp_list.append(prob)
                     vec = torch.cat([x1b[i], x2b[j]], 0)
                     pos_list.append((i, j))
                     vec_list.append(vec)
@@ -331,8 +407,6 @@ class Model(baseline.Model):
                         idx = torch.cat([xsi1b[:lb], xsi2b[:lb] + 400002], 0)
                         sparse_list.append(sparse)
                         idx_list.append(idx)
-                    if self.phrase_filter:
-                        fsp_list.append(pf['filter_sigmoid_prob'][k, i, j])
 
             dense = torch.stack(vec_list, 0)
             if xs1 is None:
@@ -405,17 +479,46 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, dual, dual_init, dual_hl, phrase_filter, filter_init, **kwargs):
+    def __init__(self, sparse, dual, dual_init, dual_hl, phrase_filter, filter_init, multimodal, num_mods, multi_init,
+                 multi_hl,
+                 **kwargs):
         super(Loss, self).__init__(**kwargs)
+        self.sparse = sparse
         self.dual = dual
         self.dual_init = dual_init
         self.dual_hl = dual_hl
         self.phrase_filter = phrase_filter
         self.filter_init = filter_init
+        self.multimodal = multimodal
+        self.num_mods = num_mods
+        self.multi_init = multi_init
+        self.multi_hl = multi_hl
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
-                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None, **kwargs):
-        loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
+                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None,
+                x1=None, x2=None, xs1=None, xs2=None, **kwargs):
+        loss = 0.0
+        if self.multimodal:
+            answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
+            answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
+            question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
+
+            if self.multi_init > 0.0:
+                # diversity regularization
+                def get_loss(x):
+                    l = torch.stack(x.chunk(self.num_mods + 1, 0), dim=2)
+                    div = l.matmul(l.transpose(2, 3)) * (1.0 - torch.eye(l.size(2)).to(l.device))
+                    m = div.abs().mean()
+                    cf = self.multi_init * torch.exp(-log2 * step / self.multi_hl)
+                    return cf * m
+
+                loss = loss + get_loss(x1)
+                loss = loss + get_loss(x2)
+                if self.sparse:
+                    loss = loss + get_loss(xs1)
+                    loss = loss + get_loss(xs1)
+
+        loss = loss + super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
         if self.phrase_filter:
             answer_word_starts = answer_word_starts - 1
             answer_word_ends = answer_word_ends - 1
