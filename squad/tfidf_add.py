@@ -122,8 +122,10 @@ def append_tfidf(context_emb_dir, question_emb_dir, progress, **kwargs):
 
         # Get tf-idf vector of the document, then concat
         tfidf_emb = ranker.text2spvec(' '.join(squad_docs[doc_title]))
+        tfidf_emb = tfidf_emb * 1e12 # tfidf weighting (infinite)
+        tfidf_emb = vstack([tfidf_emb] * c_emb.shape[0]) # tile
         c_emb = csr_matrix(c_emb)
-        concat_emb = vstack([hstack([emb, tfidf_emb]) for emb in c_emb])
+        concat_emb = hstack([c_emb, tfidf_emb])
 
         # Save concatenated vector
         concat_path = os.path.join(context_emb_dir, par_title + '_tfidf.npz')
@@ -141,8 +143,10 @@ def append_tfidf(context_emb_dir, question_emb_dir, progress, **kwargs):
 
         # Get tf-idf vector of question, then concat
         tfidf_emb = ranker.text2spvec(squad_ques[q_id])
+        tfidf_emb = tfidf_emb * 1e12 # tfidf weighting (infinite)
+        tfidf_emb = vstack([tfidf_emb] * q_emb.shape[0]) # tile
         q_emb = csr_matrix(q_emb)
-        concat_emb = vstack([hstack([emb, tfidf_emb]) for emb in q_emb])
+        concat_emb = hstack([q_emb, tfidf_emb])
 
         # Save concatenated vector
         concat_path = os.path.join(question_emb_dir, q_id + '_tfidf.npz')
