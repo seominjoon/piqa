@@ -3,6 +3,7 @@ import os
 import importlib
 import sys
 import numpy as np
+import scipy
 
 from pprint import pprint
 
@@ -33,15 +34,19 @@ if __name__ == '__main__':
     results = []
     embs = []
     idxs = []
-    iterator = interface.context_load(metadata=True, emb_type=args.emb_type)
-    for _, (cur_phrases, each_emb, metadata) in zip(range(args.num_train_mats), iterator):
+    iterator = interface.context_load(metadata=True, emb_type=args.emb_type, tfidf=args.tfidf)
+    for (cur_phrases, each_emb, metadata) in iterator:
         embs.append(each_emb)
         phrases.extend(cur_phrases)
         for span in metadata['answer_spans']:
             results.append([len(paras), span[0], span[1]])
             idxs.append(len(idxs))
         paras.append(metadata['context'])
-    if args.emb_type == 'dense':
+
+        if len(embs) == args.num_train_mats:
+            break
+
+    if args.emb_type == 'dense' and not args.tfidf:
         import faiss
         emb = np.concatenate(embs, 0)
 
@@ -83,8 +88,29 @@ if __name__ == '__main__':
         def search(emb, k):
             D, I = search_index.search(emb, k)
             return D, I
-    else:
+
+        print('Index loaded: {}'.format(search_index.ntotal))
+
+    elif args.emb_type == 'sparse' or args.tfidf:
+        # from sklearn.neighbors import NearestNeighbors
+        
+        # IP will be used for search
+        # TODO: memory issue
         raise NotImplementedError()
+        search_index = scipy.sparse.vstack(embs).tocsr()
+        # search_index = NearestNeighbors(n_neighbors=5, metric='l2', algorithm='brute').fit(embs_cat)
+
+        def search(emb, k):
+            scores = emb * search_index.T
+            print(scores.shape)
+            argmax_idx = np.argmax(scores, 1)
+            print(argmax_idx.shape)
+            return D[0], I[0]
+
+        print('Index loaded: {}'.format(search_index.shape))
+
+    else:
+        raise ValueError()
 
     def retrieve(q_embs, k):
         D, I = search(q_embs, k)
@@ -101,9 +127,8 @@ if __name__ == '__main__':
         info = py.memory_info()[0] / 2. ** 30
         print('Memory Use: %.2f GB' % info)
 
-    print('Index loaded: {}'.format(search_index.ntotal))
         
-    q_embs, q_ids = interface.question_load(emb_type=args.emb_type)
+    q_embs, q_ids = interface.question_load(emb_type=args.emb_type, tfidf=args.tfidf)
     q_embs = np.stack(q_embs, 0)
     print('Question loaded: {}'.format(q_embs.shape))
     outs = retrieve(q_embs, 1)
@@ -111,6 +136,7 @@ if __name__ == '__main__':
     
     # Save dump
     predictions = {}
+    assert len(q_ids) == len(outs)
     for q_id, q_out in zip(q_ids, outs):
         context, start, end, _ = q_out[0]
         predictions[q_id] = context[start:end]

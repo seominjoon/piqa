@@ -31,7 +31,7 @@ class FileInterface(dev.FileInterface):
         if shuffle:
             random.shuffle(paths)
         if not tfidf:
-            npz_paths = tuple('%s.npz' % os.path.join(self._question_emb_dir, os.path.splitext(path)[0]) for path in paths)
+            npz_paths = tuple('%s.npz' % os.path.join(self._question_emb_dir, os.path.splitext(path)[0]) for path in paths if 'tfidf' not in path)
         else:
             npz_paths = tuple('%s_tfidf.npz' % os.path.join(self._question_emb_dir, os.path.splitext(path)[0]) for path in paths)
         embs = []
@@ -44,8 +44,7 @@ class FileInterface(dev.FileInterface):
             # squeezed
             embs.append(emb[0])
 
-        ids = [os.path.splitext(path)[0] for path in paths]
-        
+        ids = [os.path.splitext(os.path.basename(path))[0] for path in npz_paths]
         return embs, ids
 
     def context_load(self, metadata=False, emb_type='dense', shuffle=True, tfidf=False):
