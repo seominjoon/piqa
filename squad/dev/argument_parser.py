@@ -25,6 +25,8 @@ class ArgumentParser(baseline.ArgumentParser):
         # Multimodality (M)
         self.add_argument('--multimodal', default=False, action='store_true')
         self.add_argument('--num_mods', type=int, default=1)
+        self.add_argument('--multi_init', type=float, default=5.0)
+        self.add_argument('--multi_hl', type=float, default=10000)
 
     def parse_args(self, **kwargs):
         args = super().parse_args()

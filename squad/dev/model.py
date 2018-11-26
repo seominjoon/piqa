@@ -161,6 +161,7 @@ class Model(baseline.Model):
                  phrase_filter=False,
                  filter_th=0.0,
                  multimodal=False,
+                 num_mods=1,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -207,12 +208,16 @@ class Model(baseline.Model):
 
         self.multimodal = multimodal
         if multimodal:
-            self.context_start2 = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
-                                                  sparse_activation=sparse_activation, num_layers=num_layers,
-                                                  normalize=normalize)
-            self.context_end2 = ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+            self.num_mods = num_mods
+            for i in range(num_mods):
+                self.add_module('context_start%d' % i,
+                                ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
                                                 sparse_activation=sparse_activation, num_layers=num_layers,
-                                                normalize=normalize)
+                                                normalize=normalize))
+                self.add_module('context_end%d' % i,
+                                ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                sparse_activation=sparse_activation, num_layers=num_layers,
+                                                normalize=normalize))
 
         if self.metric == 'mlp':
             self.mlp1 = nn.Linear(6 * hidden_size * num_heads, 1)
@@ -252,21 +257,28 @@ class Model(baseline.Model):
         x2, xs2 = hd2['dense'], hd2['sparse']
 
         if self.multimodal:
-            hd1m = self.context_start2(x, mx)
-            hd2m = self.context_end2(x, mx)
-            x1m, xs1m = hd1m['dense'], hd1m['sparse']
-            x2m, xs2m = hd2m['dense'], hd2m['sparse']
-            x1 = torch.cat([x1, x1m], 0)
-            x2 = torch.cat([x2, x2m], 0)
-            q1 = torch.cat([q1, q1], 0)
-            q2 = torch.cat([q2, q2], 0)
-            mx = torch.cat([mx, mx], 0)
+            modules = dict(self.named_children())
+            x1m, x2m, xs1m, xs2m = [], [], [], []
+            for i in range(self.num_mods):
+                hd1c = modules['context_start%d' % i](x, mx)
+                hd2c = modules['context_end%d' % i](x, mx)
+                x1c, xs1c = hd1c['dense'], hd1c['sparse']
+                x2c, xs2c = hd2c['dense'], hd2c['sparse']
+                x1m.append(x1c)
+                x2m.append(x2c)
+                xs1m.append(xs1c)
+                xs2m.append(xs2c)
+            x1 = torch.cat([x1] + x1m, 0)
+            x2 = torch.cat([x2] + x2m, 0)
+            q1 = torch.cat([q1] * (self.num_mods + 1), 0)
+            q2 = torch.cat([q2] * (self.num_mods + 1), 0)
+            mx = torch.cat([mx] * (self.num_mods + 1), 0)
             if self.sparse:
-                xs1 = torch.cat([xs1, xs1m], 0)
-                xs2 = torch.cat([xs2, xs2m], 0)
-                qs1 = torch.cat([qs1, qs1], 0)
-                qs2 = torch.cat([qs2, qs2], 0)
-                mxq = torch.cat([mxq, mxq], 0)
+                xs1 = torch.cat([xs1] + xs1m, 0)
+                xs2 = torch.cat([xs2] + xs2m, 0)
+                qs1 = torch.cat([qs1] * (self.num_mods + 1), 0)
+                qs2 = torch.cat([qs2] * (self.num_mods + 1), 0)
+                mxq = torch.cat([mxq] * (self.num_mods + 1), 0)
             if self.dual:
                 answer_word_starts = torch.cat([answer_word_starts, answer_word_starts], 0)
                 answer_word_ends = torch.cat([answer_word_ends, answer_word_ends], 0)
@@ -315,7 +327,7 @@ class Model(baseline.Model):
         prob = prob * mask
 
         if self.multimodal:
-            prob = torch.max(*prob.chunk(2, dim=0))
+            prob = torch.stack(prob.chunk(self.num_mods + 1, dim=0)).max(0)[0]
             _, yp1 = prob.max(2)[0].max(1)
             _, yp2 = prob.max(1)[0].max(1)
         else:
@@ -467,22 +479,46 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, dual, dual_init, dual_hl, phrase_filter, filter_init, multimodal, **kwargs):
+    def __init__(self, sparse, dual, dual_init, dual_hl, phrase_filter, filter_init, multimodal, num_mods, multi_init,
+                 multi_hl,
+                 **kwargs):
         super(Loss, self).__init__(**kwargs)
+        self.sparse = sparse
         self.dual = dual
         self.dual_init = dual_init
         self.dual_hl = dual_hl
         self.phrase_filter = phrase_filter
         self.filter_init = filter_init
         self.multimodal = multimodal
+        self.num_mods = num_mods
+        self.multi_init = multi_init
+        self.multi_hl = multi_hl
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
-                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None, **kwargs):
+                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None,
+                x1=None, x2=None, xs1=None, xs2=None, **kwargs):
+        loss = 0.0
         if self.multimodal:
-            answer_word_starts = torch.cat([answer_word_starts, answer_word_starts], 0)
-            answer_word_ends = torch.cat([answer_word_ends, answer_word_ends], 0)
-            question_glove_idxs = torch.cat([question_glove_idxs, question_glove_idxs], 0)
-        loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
+            answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
+            answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
+            question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
+
+            if self.multi_init > 0.0:
+                # diversity regularization
+                def get_loss(x):
+                    l = torch.stack(x.chunk(self.num_mods + 1, 0), dim=2)
+                    div = l.matmul(l.transpose(2, 3)) * (1.0 - torch.eye(l.size(2)).to(l.device))
+                    m = div.abs().mean()
+                    cf = self.multi_init * torch.exp(-log2 * step / self.multi_hl)
+                    return cf * m
+
+                loss = loss + get_loss(x1)
+                loss = loss + get_loss(x2)
+                if self.sparse:
+                    loss = loss + get_loss(xs1)
+                    loss = loss + get_loss(xs1)
+
+        loss = loss + super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
         if self.phrase_filter:
             answer_word_starts = answer_word_starts - 1
             answer_word_ends = answer_word_ends - 1
