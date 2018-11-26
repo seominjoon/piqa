@@ -509,7 +509,9 @@ class Loss(baseline.Loss):
                     l = torch.stack(x.chunk(self.num_mods + 1, 0), dim=2)
                     div = l.matmul(l.transpose(2, 3)) * (1.0 - torch.eye(l.size(2)).to(l.device))
                     m = div.abs().mean()
-                    cf = self.multi_init * torch.exp(-log2 * step / self.multi_hl)
+                    log2 = torch.log(torch.tensor(2.0).to(m.device))
+                    step_ = torch.tensor(step).to(m.device).float()
+                    cf = self.multi_init * torch.exp(-log2 * step_ / self.multi_hl)
                     return cf * m
 
                 loss = loss + get_loss(x1)
