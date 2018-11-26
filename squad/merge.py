@@ -138,7 +138,7 @@ def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, 
     predictions = {}
     for cid, id_list in tqdm(c2q.items()):
         if tfidf:
-            c_emb_path = os.path.join(context_emb_dir, '%s_tfidf.npz' % cid)
+            c_emb_path = os.path.join(context_emb_dir, '%s_tfidf100.0.npz' % cid)
         else:
             c_emb_path = os.path.join(context_emb_dir, '%s.npz' % cid)
         c_json_path = os.path.join(context_emb_dir, '%s.json' % cid)
@@ -154,7 +154,7 @@ def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, 
         q_emb_mat = None
         for id_ in id_list:
             if tfidf:
-                q_emb_path = os.path.join(question_emb_dir, '%s_tfidf.npz' % id_)
+                q_emb_path = os.path.join(question_emb_dir, '%s_tfidf100.0.npz' % id_)
             else:
                 q_emb_path = os.path.join(question_emb_dir, '%s.npz' % id_)
             if not os.path.exists(q_emb_path):

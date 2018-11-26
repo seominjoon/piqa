@@ -229,6 +229,7 @@ if __name__ == '__main__':
                 scores = context_spvec * vstack(eval_spvec).T
 
                 # Sorting copied from DrQA/drqa/retriever/tfidf_doc_ranker.py
+                # TODO: debug scores + dscard shorter than 500 chars
                 if len(scores.data) <= args.n_pars:
                     o_sort = np.argsort(-socres.data)
                 else:
