@@ -280,9 +280,9 @@ class Model(baseline.Model):
                 qs2 = torch.cat([qs2] * (self.num_mods + 1), 0)
                 mxq = torch.cat([mxq] * (self.num_mods + 1), 0)
             if self.dual:
-                answer_word_starts = torch.cat([answer_word_starts, answer_word_starts], 0)
-                answer_word_ends = torch.cat([answer_word_ends, answer_word_ends], 0)
-                question_glove_idxs = torch.cat([question_glove_idxs, question_glove_idxs], 0)
+                answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
+                answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
+                question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
 
         if self.metric in ('ip', 'cosine', 'l2'):
             logits1, logits2 = 0.0, 0.0
