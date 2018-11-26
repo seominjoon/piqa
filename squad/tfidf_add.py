@@ -78,6 +78,7 @@ def append_tfidf(context_emb_dir, question_emb_dir, progress, **kwargs):
     else:
         tqdm = lambda x: x
 
+    # Get paths
     context_paths = tuple(os.path.join(context_emb_dir, path)
                           for path in os.listdir(context_emb_dir)
                           if os.path.splitext(path)[1] == '.npz' and \
@@ -110,7 +111,6 @@ def append_tfidf(context_emb_dir, question_emb_dir, progress, **kwargs):
 
     # Process contexts first
     for c_emb_path in tqdm(context_paths):
-        break
 
         # Dense vector supported only 
         assert os.path.exists(c_emb_path)

@@ -118,4 +118,4 @@ if __name__ == '__main__':
     with open(args.pred_path, 'w') as fp:
         json.dump(predictions, fp)
 
-    print('prediction saved as {}'.format(args.pred_path))
+    print('Prediction saved as {}'.format(args.pred_path))
