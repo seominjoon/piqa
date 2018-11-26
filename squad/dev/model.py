@@ -491,6 +491,8 @@ class Loss(baseline.Loss):
         self.filter_init = filter_init
         self.multimodal = multimodal
         self.num_mods = num_mods
+        self.multi_init = multi_init
+        self.multi_hl = multi_hl
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
                 decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None,
@@ -501,18 +503,20 @@ class Loss(baseline.Loss):
             answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
             question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
 
-            # diversity regularization
-            def get_loss(x):
-                l = torch.stack(x.chunk(self.num_mods + 1, 0), dim=2)
-                div = l.matmul(l.transpose(2, 3)) * (1.0 - torch.eye(l.size(2)).to(l.device))
-                m = div.abs().mean()
-                return m
+            if self.multi_init > 0.0:
+                # diversity regularization
+                def get_loss(x):
+                    l = torch.stack(x.chunk(self.num_mods + 1, 0), dim=2)
+                    div = l.matmul(l.transpose(2, 3)) * (1.0 - torch.eye(l.size(2)).to(l.device))
+                    m = div.abs().mean()
+                    cf = self.multi_init * torch.exp(-log2 * step / self.multi_hl)
+                    return cf * m
 
-            loss = loss + get_loss(x1)
-            loss = loss + get_loss(x2)
-            if self.sparse:
-                loss = loss + get_loss(xs1)
-                loss = loss + get_loss(xs1)
+                loss = loss + get_loss(x1)
+                loss = loss + get_loss(x2)
+                if self.sparse:
+                    loss = loss + get_loss(xs1)
+                    loss = loss + get_loss(xs1)
 
         loss = loss + super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
         if self.phrase_filter:
