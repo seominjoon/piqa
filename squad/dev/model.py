@@ -296,8 +296,8 @@ class Model(baseline.Model):
             q2a = q2.unsqueeze(1).repeat(1, x2.size(1), 1)
             concat1 = torch.cat([x1, q1a, x1 * q1a], 2)
             concat2 = torch.cat([x2, q2a, x2 * q2a], 2)
-            logits1 = self.mlp1(concat1).squeeze(2)
-            logits2 = self.mlp2(concat2).squeeze(2)
+            logits1 = self.mlp1(concat1).squeeze(2) + mx
+            logits2 = self.mlp2(concat2).squeeze(2) + mx
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
