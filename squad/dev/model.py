@@ -215,8 +215,8 @@ class Model(baseline.Model):
                                                 normalize=normalize)
 
         if self.metric == 'mlp':
-            self.mlp1 = DoubleLinear(6 * hidden_size * num_heads, hidden_size * num_heads, 1)
-            self.mlp2 = DoubleLinear(6 * hidden_size * num_heads, hidden_size * num_heads, 1)
+            self.mlp1 = nn.Linear(6 * hidden_size * num_heads, 1)
+            self.mlp2 = nn.Linear(6 * hidden_size * num_heads, 1)
 
     def forward(self,
                 context_char_idxs,
