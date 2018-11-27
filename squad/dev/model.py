@@ -283,6 +283,8 @@ class Model(baseline.Model):
                 answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
                 answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
                 question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
+            if self.phrase_filter:
+                context_glove_idxs = torch.cat([context_glove_idxs] * (self.num_mods + 1), 0)
 
         if self.metric in ('ip', 'cosine', 'l2'):
             logits1, logits2 = 0.0, 0.0
@@ -493,10 +495,17 @@ class Loss(baseline.Loss):
         self.num_mods = num_mods
         self.multi_init = multi_init
         self.multi_hl = multi_hl
+        self.weight = nn.Parameter(torch.rand(1))
+        self.filter_dummy = nn.Parameter(torch.rand(1))
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
                 decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None,
                 x1=None, x2=None, xs1=None, xs2=None, **kwargs):
+
+        weight = self.weight.unsqueeze(0).repeat(logits1.size(0), 1)
+        logits1 = torch.cat([weight, logits1], 1)
+        logits2 = torch.cat([weight, logits2], 1)
+
         loss = 0.0
         if self.multimodal:
             answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
@@ -520,10 +529,16 @@ class Loss(baseline.Loss):
                     loss = loss + get_loss(xs1)
                     loss = loss + get_loss(xs1)
 
-        loss = loss + super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
+        loss1 = self.cel(logits1, answer_word_starts[:, 0])
+        loss2 = self.cel(logits2, answer_word_ends[:, 0])
+        loss = loss + loss1 + loss2
+
         if self.phrase_filter:
-            answer_word_starts = answer_word_starts - 1
-            answer_word_ends = answer_word_ends - 1
+            filter_dummy1 = self.filter_dummy.unsqueeze(0).unsqueeze(0).repeat(filter_logits.size(0),
+                                                                               filter_logits.size(1), 1)
+            filter_dummy2 = self.filter_dummy.unsqueeze(0).unsqueeze(0).repeat(filter_logits.size(0), 1,
+                                                                               filter_logits.size(2) + 1)
+            filter_logits = torch.cat([filter_dummy2, torch.cat([filter_dummy1, filter_logits], 2)], 1)
             eye = torch.eye(logits1.size(1)).to(logits1.device)
             target1 = torch.embedding(eye, answer_word_starts[:, 0])
             target2 = torch.embedding(eye, answer_word_ends[:, 0])
