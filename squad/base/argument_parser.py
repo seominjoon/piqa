@@ -16,6 +16,8 @@ class ArgumentParser(argparse.ArgumentParser):
 
         # Data (input) paths
         self.add_argument('--data_dir', type=str, default=os.path.join(home, 'data', 'squad'), help='Data directory')
+        self.add_argument('--train_name', type=str, default='train-v1.1.json')
+        self.add_argument('--test_name', type=str, default='dev-v1.1.json')
         self.add_argument('--train_path', type=str, default=None, help='location of the training data')
         self.add_argument('--test_path', type=str, default=None, help='location of the test data')
 
@@ -70,9 +72,9 @@ class ArgumentParser(argparse.ArgumentParser):
             args.train_steps = 2
 
         if args.train_path is None:
-            args.train_path = os.path.join(args.data_dir, 'train-v1.1.json')
+            args.train_path = os.path.join(args.data_dir, args.train_name)
         if args.test_path is None:
-            args.test_path = os.path.join(args.data_dir, 'dev-v1.1.json')
+            args.test_path = os.path.join(args.data_dir, args.test_name)
 
         if args.save_dir is None:
             args.save_dir = os.path.join(args.output_dir, 'save')

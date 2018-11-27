@@ -194,6 +194,7 @@ if __name__ == '__main__':
         # Iterate dev-squad, and append retrieved docs
         for item in tqdm(squad):
             eval_context = [] # context for evaluation
+            eval_context_src = []
 
             # Append SQuAD document for the title
             title = ' '.join(item['cid'].split('_')[:-1])
@@ -227,6 +228,7 @@ if __name__ == '__main__':
                     else:
                         if len(split) >= 500:
                             eval_context.append(split)
+                            eval_context_src.append(curr_title)
                             if not args.par_open:
                                 open_context.update([split])
 
@@ -234,6 +236,8 @@ if __name__ == '__main__':
                 if doc_counter == args.n_docs_max:
                     break
             item['eval_context'] = eval_context
+            item['eval_context_src'] = eval_context_src
+            assert len(eval_context) == len(eval_context_src)
         print('Retrieving closest doc texts done')
 
     # Load retriever
@@ -248,9 +252,9 @@ if __name__ == '__main__':
         for item in tqdm(squad):
             # Filter the same context
             if item['context'] in item['eval_context']:
-                item['eval_context'] = list(
-                    filter(lambda x: x != item['context'], item['eval_context'])
-                )
+                same_idx = item['eval_context'].index(item['context'])
+                del item['eval_context'][same_idx]
+                del item['eval_context_src'][same_idx]
 
             # Calculate sparse vectors, and TF-IDF scores 
             eval_spvec = [ranker.text2spvec(t) 
@@ -260,7 +264,7 @@ if __name__ == '__main__':
 
             # Sorting using argsort
             if len(scores.data) <= args.n_pars:
-                o_sort = np.argsort(-socres.data)
+                o_sort = np.argsort(-scores.data)
             else:
                 o = np.argpartition(-scores.data, 
                                     args.n_pars)[0:args.n_pars]
@@ -271,12 +275,14 @@ if __name__ == '__main__':
 
             # Update contexts
             selected_pars = list(np.array(item['eval_context'])[par_ids])
+            selected_srcs = list(np.array(item['eval_context_src'])[par_ids])
             if len(selected_pars) < args.n_pars:
                 print('Warning: not enough # par {}'.format(len(selected_pars)))
             if args.par_open and args.mode == 'open':
                 open_context.update(selected_pars[:])
             elif args.mode == 'large':
                 item['eval_context'] = selected_pars[:]
+                item['eval_context_src'] = selected_srcs[:]
 
     # Or, we just use random docs
     else:
@@ -286,8 +292,9 @@ if __name__ == '__main__':
             new_docs = []
             for doc in random_docs:
                 doc_title = ranker.get_doc_id(doc)
-                par_lens = [len(par) 
-                    for par in _split_doc(db.get_doc_text(doc_title))]
+                par_lens = [
+                    len(par) for par in _split_doc(db.get_doc_text(doc_title))
+                ]
 
                 # Avoid same docs, short docs
                 while doc_title in squad_docs or \
@@ -311,30 +318,36 @@ if __name__ == '__main__':
                         for text in random_texts])
 
             # Update contexts
-            selected_pars = [np.random.choice(text, 1)[0]
-                             for text in random_texts]
+            selected_pars = [
+                np.random.choice(text, 1)[0] for text in random_texts
+            ]
             assert len(selected_pars) == args.n_pars
             if args.mode == 'open':
                 open_context.update(selected_pars[:])
             elif args.mode == 'large':
                 item['eval_context'] = selected_pars[:]
+                item['eval_context_src'] = random_titles[:]
 
     # For SQuAD-Large-(tfidf|rand)
     if args.mode == 'large':
-        with open('dev-v1.1-large-{}-{}par{}{}.json'.format(
-                  'tfidf' if args.tfidf_sort else 'rand',
-                  'doc{}-'.format(args.n_docs_max) if args.tfidf_sort else '',
-                  args.n_pars,
-                  '-draft' if args.draft else ''), 'w') as f:
+        save_str = 'dev-v1.1-large-{}-{}par{}{}.json'.format(
+            'tfidf' if args.tfidf_sort else 'rand',
+            'doc{}-'.format(args.n_docs_max) if args.tfidf_sort else '',
+            args.n_pars,
+            '-draft' if args.draft else ''
+        )
+        with open(save_str, 'w') as f:
             json.dump(squad, f)
 
     # For SQuAD-Open
     elif args.mode == 'open':
-        with open('dev-v1.1-open-doc{}{}{}.json'.format(
-                  args.n_docs_max,
-                  '-par{}'.format(args.n_pars) if args.par_open else '',
-                  '-draft' if args.draft else ''), 'w') as f:
+        save_str = 'dev-v1.1-open-doc{}{}{}.json'.format(
+            args.n_docs_max,
+             '-par{}'.format(args.n_pars) if args.par_open else '',
+             '-draft' if args.draft else ''
+        )
+        with open(save_str, 'w') as f:
             json.dump(list(open_context), f)
 
-    print('SQuAD development set augmentation done')
+    print('SQuAD development set augmentation saved as {}'.format(save_str))
 
