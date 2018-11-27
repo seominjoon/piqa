@@ -198,8 +198,12 @@ class Model(baseline.Model):
                                              normalize=normalize)
         self.dual = dual
         if dual:
-            self.decoder = Decoder(self.embedding.glove_embedding.embedding,
-                                   2 * hidden_size * num_heads, num_layers, dropout)
+            self.decoder1 = Decoder(self.embedding.glove_embedding.embedding,
+                                    2 * hidden_size * num_heads, num_layers, dropout)
+            self.decoder2 = Decoder(self.embedding.glove_embedding.embedding,
+                                    2 * hidden_size * num_heads, num_layers, dropout)
+            self.dual_dummy1 = nn.Parameter(torch.rand(2 * hidden_size * num_heads))
+            self.dual_dummy2 = nn.Parameter(torch.rand(2 * hidden_size * num_heads))
 
         self.phrase_filter = phrase_filter
         if phrase_filter:
@@ -354,11 +358,13 @@ class Model(baseline.Model):
                    'qsi2': question_glove_idxs}
 
         if self.dual:
-            eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
-            init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
-            init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
-            decoder_logits1 = self.decoder(init1, question_idxs=question_glove_idxs)
-            decoder_logits2 = self.decoder(init2, question_idxs=question_glove_idxs)
+            eye = torch.eye(context_glove_idxs.size(1) + 1).to(context_glove_idxs.device)
+            x1a = torch.cat([self.dual_dummy1.unsqueeze(0).unsqueeze(0).repeat(x1.size(0), 1, 1), x1], 1)
+            x2a = torch.cat([self.dual_dummy2.unsqueeze(0).unsqueeze(0).repeat(x2.size(0), 1, 1), x2], 1)
+            init1 = torch.embedding(eye, answer_word_starts[:, 0]).unsqueeze(1).matmul(x1a).squeeze(1)
+            init2 = torch.embedding(eye, answer_word_ends[:, 0]).unsqueeze(1).matmul(x2a).squeeze(1)
+            decoder_logits1 = self.decoder1(init1, question_idxs=question_glove_idxs)
+            decoder_logits2 = self.decoder2(init2, question_idxs=question_glove_idxs)
             return_['decoder_logits1'] = decoder_logits1
             return_['decoder_logits2'] = decoder_logits2
 
@@ -549,11 +555,14 @@ class Loss(baseline.Loss):
             loss = loss + self.filter_init * filter_loss
         if not self.dual:
             return loss
-        decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
-                                 question_glove_idxs.view(-1))
-        decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
-                                 question_glove_idxs.view(-1))
+        na_mask = answer_word_starts[:, 0] > 0
+        cel = nn.CrossEntropyLoss(reduction='none')
+        decoder_loss1 = cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
+                            question_glove_idxs.view(-1))
+        decoder_loss2 = cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
+                            question_glove_idxs.view(-1))
         decoder_loss = decoder_loss1 + decoder_loss2
+        decoder_loss = (na_mask.unsqueeze(1).float() * decoder_loss).mean()
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
         cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)
