@@ -3,12 +3,14 @@ import time
 from collections import OrderedDict
 from pprint import pprint
 import importlib
+import random
 
 from sklearn.neighbors import NearestNeighbors
 import scipy.sparse
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+import torch.backends.cudnn
 
 import base
 
@@ -421,6 +423,15 @@ def main():
     argument_parser = ArgumentParser()
     argument_parser.add_arguments()
     args = argument_parser.parse_args()
+
+    # Make sure nothing is `random` above this
+    torch.manual_seed(args.seed)
+    if args.cuda:
+        torch.backends.cudnn.deterministic = True
+        torch.cuda.manual_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+
     if args.mode == 'train':
         train(args)
     elif args.mode == 'test':
