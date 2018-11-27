@@ -34,7 +34,7 @@ if __name__ == '__main__':
     results = []
     embs = []
     idxs = []
-    iterator = interface.context_load(metadata=True, emb_type=args.emb_type, tfidf=args.tfidf)
+    iterator = interface.context_load(metadata=True, emb_type=args.emb_type)
     for (cur_phrases, each_emb, metadata) in iterator:
         embs.append(each_emb)
         phrases.extend(cur_phrases)
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         if len(embs) == args.num_train_mats:
             break
 
-    if args.emb_type == 'dense' and not args.tfidf:
+    if args.emb_type == 'dense':
         import faiss
         emb = np.concatenate(embs, 0)
 
@@ -91,7 +91,7 @@ if __name__ == '__main__':
 
         print('Index loaded: {}'.format(search_index.ntotal))
 
-    elif args.emb_type == 'sparse' or args.tfidf:
+    elif args.emb_type == 'sparse':
         # from sklearn.neighbors import NearestNeighbors
         
         # IP will be used for search
@@ -128,7 +128,7 @@ if __name__ == '__main__':
         print('Memory Use: %.2f GB' % info)
 
         
-    q_embs, q_ids = interface.question_load(emb_type=args.emb_type, tfidf=args.tfidf)
+    q_embs, q_ids = interface.question_load(emb_type=args.emb_type)
     q_embs = np.stack(q_embs, 0)
     print('Question loaded: {}'.format(q_embs.shape))
     outs = retrieve(q_embs, 1)

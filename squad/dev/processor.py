@@ -2,7 +2,7 @@ from scipy.sparse import csr_matrix, hstack
 import numpy as np
 
 import baseline
-from baseline.processor import get_pred
+from baseline.processor import get_pred, _f1_score, _exact_match_score
 
 
 class Processor(baseline.Processor):
@@ -58,6 +58,26 @@ class Processor(baseline.Processor):
 
         output = dict(tuple(example.items()) + tuple(prepro_example.items()))
         return output
+
+    def postprocess(self, example, model_output):
+        yp1 = model_output['yp1'].item()
+        yp2 = model_output['yp2'].item()
+        context = example['context']
+        context_spans = example['context_spans']
+        pred = get_pred(context, context_spans, yp1, yp2)
+        out = {'pred': pred, 'id': example['id']}
+        if 'answer_starts' in example:
+            y1 = example['answer_starts']
+            y2 = example['answer_ends']
+            gt = [context[s:e] for s, e in zip(y1, y2)]
+            out['gt'] = gt
+
+            if len(gt) > 0:
+                f1 = max(_f1_score(pred, gt_each) for gt_each in gt)
+                em = max(_exact_match_score(pred, gt_each) for gt_each in gt)
+                out['f1'] = f1
+                out['em'] = em
+        return out
 
     def postprocess_context(self, example, context_output):
         pos_tuple, dense, sparse_, fsp = context_output

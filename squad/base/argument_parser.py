@@ -15,10 +15,9 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--pause', type=int, default=0)  # ignore this argument.
 
         # Data (input) paths
-        self.add_argument('--train_path', type=str, default=os.path.join(home, 'data', 'squad', 'train-v1.1.json'),
-                          help='location of the training data')
-        self.add_argument('--test_path', type=str, default=os.path.join(home, 'data', 'squad', 'dev-v1.1.json'),
-                          help='location of the test data')
+        self.add_argument('--data_dir', type=str, default=os.path.join(home, 'data', 'squad'), help='Data directory')
+        self.add_argument('--train_path', type=str, default=None, help='location of the training data')
+        self.add_argument('--test_path', type=str, default=None, help='location of the test data')
 
         # Output paths
         self.add_argument('--output_dir', type=str, default='/tmp/piqa/squad/', help='Output directory')
@@ -69,6 +68,11 @@ class ArgumentParser(argparse.ArgumentParser):
             args.eval_steps = 1
             args.eval_save_period = 2
             args.train_steps = 2
+
+        if args.train_path is None:
+            args.train_path = os.path.join(args.data_dir, 'train-v1.1.json')
+        if args.test_path is None:
+            args.test_path = os.path.join(args.data_dir, 'dev-v1.1.json')
 
         if args.save_dir is None:
             args.save_dir = os.path.join(args.output_dir, 'save')

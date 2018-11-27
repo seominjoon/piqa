@@ -93,8 +93,8 @@ def train(args):
             model_output = model(step=step, **train_batch)
             train_results = processor.postprocess_batch(train_dataset, train_batch, model_output)
             train_loss = loss_model(step=step, **model_output, **train_batch)
-            train_f1 = float(np.mean([result['f1'] for result in train_results]))
-            train_em = float(np.mean([result['em'] for result in train_results]))
+            train_f1 = float(np.mean([result['f1'] for result in train_results if 'f1' in result]))
+            train_em = float(np.mean([result['em'] for result in train_results if 'em' in result]))
 
             # optimize
             optimizer.zero_grad()

@@ -121,7 +121,7 @@ def get_predictions(context_emb_path, question_emb_path, q2c, sparse=False, metr
     return predictions
 
 
-def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, metric='ip', progress=False, tfidf=False):
+def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, metric='ip', progress=False):
     context_emb_dir, context_emb_ext = os.path.splitext(context_emb_path)
     question_emb_dir, question_emb_ext = os.path.splitext(question_emb_path)
     if context_emb_ext == '.zip':
@@ -137,10 +137,7 @@ def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, 
         tqdm = lambda x: x
     predictions = {}
     for cid, id_list in tqdm(c2q.items()):
-        if tfidf:
-            c_emb_path = os.path.join(context_emb_dir, '%s_tfidf100.0.npz' % cid)
-        else:
-            c_emb_path = os.path.join(context_emb_dir, '%s.npz' % cid)
+        c_emb_path = os.path.join(context_emb_dir, '%s.npz' % cid)
         c_json_path = os.path.join(context_emb_dir, '%s.json' % cid)
 
         if not os.path.exists(c_emb_path):
@@ -150,34 +147,23 @@ def get_predictions_c2q(context_emb_path, question_emb_path, c2q, sparse=False, 
             # print('Missing %s' % c_json_path)
             continue
 
-        load = scipy.sparse.load_npz if (sparse or tfidf) else np.load
+        load = scipy.sparse.load_npz if sparse else np.load
         q_emb_mat = None
         for id_ in id_list:
-            if tfidf:
-                q_emb_path = os.path.join(question_emb_dir, '%s_tfidf100.0.npz' % id_)
-            else:
-                q_emb_path = os.path.join(question_emb_dir, '%s.npz' % id_)
+            q_emb_path = os.path.join(question_emb_dir, '%s.npz' % id_)
             if not os.path.exists(q_emb_path):
                 print('Missing %s' % q_emb_path)
             q_emb = load(q_emb_path)  # shape = [M, d], d is the embedding size.
-            if not tfidf:
-                q_emb = q_emb['arr_0']
-                q_emb_mat = np.append(q_emb_mat, q_emb, 0) \
-                            if q_emb_mat is not None else q_emb
-            else:
-                if q_emb_mat is None:
-                    q_emb_mat = []
-                q_emb_mat.append(q_emb)
-
-        if tfidf:
-            q_emb_mat = scipy.sparse.vstack(q_emb_mat)
+            q_emb = q_emb['arr_0']
+            q_emb_mat = np.append(q_emb_mat, q_emb, 0) \
+                        if q_emb_mat is not None else q_emb
 
         c_emb = load(c_emb_path)  # shape = [N, d], d is the embedding size.
 
         with open(c_json_path, 'r') as fp:
             phrases = json.load(fp)
 
-        if sparse or tfidf:
+        if sparse:
             if metric == 'ip':
                 sim = c_emb * q_emb_mat.T
                 m = np.array(sim.todense())
@@ -242,7 +228,6 @@ if __name__ == '__main__':
                         help='ip|l1|l2|cosine (inner product or L1 or L2 or cosine distance)')
     parser.add_argument('--progress', default=False, action='store_true', help='Show progress bar. Requires `tqdm`.')
     parser.add_argument('--q_mat', default=False, action='store_true', help='Query with matrix (faster)')
-    parser.add_argument('--tfidf', default=False, action='store_true', help='use tfidf concatenated vectors')
     args = parser.parse_args()
 
     with open(args.data_path) as dataset_file:
@@ -262,7 +247,7 @@ if __name__ == '__main__':
         c2q = get_c2q(dataset)
         predictions = get_predictions_c2q(args.context_emb_dir, 
             args.question_emb_dir, c2q, sparse=args.sparse,
-            metric=args.metric, progress=args.progress, tfidf=args.tfidf)
+            metric=args.metric, progress=args.progress)
 
 
     with open(args.pred_path, 'w') as fp:

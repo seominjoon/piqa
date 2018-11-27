@@ -198,8 +198,12 @@ class Model(baseline.Model):
                                              normalize=normalize)
         self.dual = dual
         if dual:
-            self.decoder = Decoder(self.embedding.glove_embedding.embedding,
-                                   2 * hidden_size * num_heads, num_layers, dropout)
+            self.decoder1 = Decoder(self.embedding.glove_embedding.embedding,
+                                    2 * hidden_size * num_heads, num_layers, dropout)
+            self.decoder2 = Decoder(self.embedding.glove_embedding.embedding,
+                                    2 * hidden_size * num_heads, num_layers, dropout)
+            self.dual_dummy1 = nn.Parameter(torch.rand(2 * hidden_size * num_heads))
+            self.dual_dummy2 = nn.Parameter(torch.rand(2 * hidden_size * num_heads))
 
         self.phrase_filter = phrase_filter
         if phrase_filter:
@@ -354,11 +358,13 @@ class Model(baseline.Model):
                    'qsi2': question_glove_idxs}
 
         if self.dual:
-            eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
-            init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
-            init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
-            decoder_logits1 = self.decoder(init1, question_idxs=question_glove_idxs)
-            decoder_logits2 = self.decoder(init2, question_idxs=question_glove_idxs)
+            eye = torch.eye(context_glove_idxs.size(1) + 1).to(context_glove_idxs.device)
+            x1a = torch.cat([self.dual_dummy1.unsqueeze(0).unsqueeze(0).repeat(x1.size(0), 1, 1), x1], 1)
+            x2a = torch.cat([self.dual_dummy2.unsqueeze(0).unsqueeze(0).repeat(x2.size(0), 1, 1), x2], 1)
+            init1 = torch.embedding(eye, answer_word_starts[:, 0]).unsqueeze(1).matmul(x1a).squeeze(1)
+            init2 = torch.embedding(eye, answer_word_ends[:, 0]).unsqueeze(1).matmul(x2a).squeeze(1)
+            decoder_logits1 = self.decoder1(init1, question_idxs=question_glove_idxs)
+            decoder_logits2 = self.decoder2(init2, question_idxs=question_glove_idxs)
             return_['decoder_logits1'] = decoder_logits1
             return_['decoder_logits2'] = decoder_logits2
 
@@ -375,15 +381,34 @@ class Model(baseline.Model):
         return return_
 
     def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
-        l = (context_glove_idxs > 0).sum(1)
         mx = (context_glove_idxs == 0).float() * -1e9
         x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
-        xd1 = self.context_start(x, mx)
+        out = self._get_context(context_glove_idxs, x, mx, self.context_start, self.context_end)
+        if self.multimodal:
+            modules = dict(self.named_children())
+            for i in range(self.num_mods):
+                out_i = self._get_context(context_glove_idxs, x, mx, modules['context_start%d' % i],
+                                          modules['context_end%d' % i])
+                for each_out, each_out_i in zip(out, out_i):
+                    each_out[0].extend(each_out_i[0])
+                    each_out[1] = torch.cat([each_out[1], each_out_i[1]], 0)
+                    if self.sparse:
+                        each_out[2][0] = torch.cat([each_out[2][0], each_out_i[2][0]], 0)
+                        each_out[2][1] = torch.cat([each_out[2][1], each_out_i[2][1]], 0)
+                    if self.phrase_filter:
+                        each_out[3] = torch.cat([each_out[3], each_out_i[3]], 0)
+        return out
+
+    def _get_context(self, context_glove_idxs, x, mx, context_start, context_end):
+        l = (context_glove_idxs > 0).sum(1)
+        xd1 = context_start(x, mx)
         x1, xs1, xsi1 = xd1['dense'], xd1['sparse'], context_glove_idxs
-        xd2 = self.context_end(x, mx)
+        xd2 = context_end(x, mx)
         x2, xs2, xsi2 = xd2['dense'], xd2['sparse'], context_glove_idxs
+
         if self.phrase_filter:
             pf = self.phrase_filter_model(x1, x2)
+
         out = []
         for k, (lb, x1b, x2b) in enumerate(zip(l, x1, x2)):
             if xs1 is not None:
@@ -416,13 +441,13 @@ class Model(baseline.Model):
             else:
                 sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
                 idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
-                sparse = (idx_cat, sparse_cat, 800004)
+                sparse = [idx_cat, sparse_cat, 800004]
             if self.phrase_filter:
                 fsp_stack = torch.stack(fsp_list, 0)
             else:
                 fsp_stack = None
-            out.append((tuple(pos_list), dense, sparse, fsp_stack))
-        return tuple(out)
+            out.append([pos_list, dense, sparse, fsp_stack])
+        return out
 
     def get_question(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None,
                      **kwargs):
@@ -549,11 +574,14 @@ class Loss(baseline.Loss):
             loss = loss + self.filter_init * filter_loss
         if not self.dual:
             return loss
-        decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
-                                 question_glove_idxs.view(-1))
-        decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
-                                 question_glove_idxs.view(-1))
+        na_mask = answer_word_starts[:, 0] > 0
+        cel = nn.CrossEntropyLoss(reduction='none')
+        decoder_loss1 = cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
+                            question_glove_idxs.view(-1))
+        decoder_loss2 = cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
+                            question_glove_idxs.view(-1))
         decoder_loss = decoder_loss1 + decoder_loss2
+        decoder_loss = (na_mask.unsqueeze(1).float() * decoder_loss).mean()
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
         cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)
