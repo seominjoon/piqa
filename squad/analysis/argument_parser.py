@@ -9,10 +9,8 @@ class ArgumentParser(dev.ArgumentParser):
         super().add_arguments()
 
         self.add_argument('--max_eval_par', type=int, default=0)
-        self.add_argument('--analysis', type=str, default='',
-                          help='eval|open')
-        self.add_argument('--tfidf', default=False, action='store_true',
-                          help='use tfidf for open_merge.py')
+        self.add_argument('--analysis', type=str, default='large',
+                          help='large|open')
 
     def parse_args(self, **kwargs):
         args = super().parse_args()

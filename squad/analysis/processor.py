@@ -17,38 +17,51 @@ class Processor(dev.Processor):
         self.max_eval_par = kwargs['max_eval_par']
         super(Processor, self).__init__(**kwargs)
 
+    # Modified to include noise paragraphs
     def postprocess_context(self, example, context_outputs):
         if self.max_eval_par == 0:
             context_outputs = [context_outputs]
+        metadata = {}
 
         # Iterate (eval_len + 1) => last one is a positive one
         all_phrases = []
         all_out = None
-        for idx, context_output in enumerate(context_outputs):
+        for c_idx, context_output in enumerate(context_outputs):
             pos_tuple, dense, sparse_ = context_output
             out = dense.cpu().numpy()
 
             # Negative contexts
-            if idx < len(context_outputs) - 1:
-                context = example['eval_context'][idx]
-                context_spans = example['eval_context_spans'][idx]
+            if c_idx < len(context_outputs) - 1:
+                context = example['eval_context'][c_idx]
+                context_spans = example['eval_context_spans'][c_idx]
             # Positive context
             else:
                 context = example['context']
                 context_spans = example['context_spans']
-            phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
+            phrases = tuple(
+                get_pred(context, context_spans, yp1, yp2) 
+                for yp1, yp2 in pos_tuple
+            )
 
             # Sparse
             if self._emb_type == 'sparse' or sparse_ is not None:
                 out = csr_matrix(out)
                 if sparse_ is not None:
                     idx, val, max_ = sparse_
-                    sparse_tensor = SparseTensor(idx.cpu().numpy(), val.cpu().numpy(), max_)
+                    sparse_tensor = SparseTensor(
+                        idx.cpu().numpy(), val.cpu().numpy(), max_
+                    )
                     out = hstack([out, sparse_tensor.scipy()])
 
-            # TODO: change this for serve_demo
-            metadata = {'context': context,
-                        'answer_spans': tuple((context_spans[yp1][0], context_spans[yp2][1]) for yp1, yp2 in pos_tuple)}
+            # For metadata
+            metadata['context_{}'.format(c_idx)] = context
+            metadata['num_phrases_{}'.format(c_idx)] = len(phrases)
+            if c_idx == len(context_outputs) - 1:
+                metadata['answer_spans'] = tuple(
+                    (context_spans[yp1][0], context_spans[yp2][1]) 
+                    for yp1, yp2 in pos_tuple
+                )
+
 
             all_phrases += phrases
             all_out = out if all_out is None else np.append(all_out, out, 
