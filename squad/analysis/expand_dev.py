@@ -15,8 +15,8 @@ import random
 from tqdm import tqdm
 
 
-# Copied from ../baseline/file_interface
-def _load_squad(squad_path, draft=False):
+# Copied and modified from ../baseline/file_interface
+def _load_squad_without_questions(squad_path, draft=False):
     with open(squad_path, 'r') as fp:
         squad = json.load(fp)
 
@@ -61,6 +61,20 @@ def _split_doc(doc):
         curr_len += len(split)
     if len(curr) > 0:
         yield ' '.join(curr)
+
+
+# Load unique squad docs and questions (separately)
+def squad_docs_ques(squad, title_split='_'):
+    squad_docs = {}
+    squad_ques = {}
+    for item in squad:
+        title = title_split.join(item['cid'].split('_')[:-1])
+        if title not in squad_docs:
+            squad_docs[title] = list()
+        if item['context'] not in squad_docs[title]:
+            squad_docs[title].append(item['context'])
+        squad_ques[item['id']] = item['question']
+    return squad_docs, squad_ques
 
 
 # Predefined paths
@@ -126,7 +140,7 @@ if __name__ == '__main__':
     if args.find_docs:
 
         # Load SQuAD data
-        dev_data = _load_squad(args.data_path)
+        dev_data = _load_squad_without_questions(args.data_path)
         print('Data from {} with size {}'.format(args.data_path, len(dev_data)))
 
         # Test retriever
@@ -166,13 +180,7 @@ if __name__ == '__main__':
         assert 'closest_docs_{}'.format(args.n_docs) in squad[0].keys()
 
     # Gather squad documents
-    squad_docs = {}
-    for item in squad:
-        title = ' '.join(item['cid'].split('_')[:-1])
-        if title not in squad_docs:
-            squad_docs[title] = list()
-        if item['context'] not in squad_docs[title]:
-            squad_docs[title].append(item['context'])
+    squad_docs, _ = squad_docs_ques(squad, title_split=' ')
 
     # For draft version
     if args.draft:
@@ -239,13 +247,8 @@ if __name__ == '__main__':
         for item in tqdm(squad):
             # Filter the same context
             if item['context'] in item['eval_context']:
-                org_len = len(item['eval_context'])
                 item['eval_context'] = list(
                     filter(lambda x: x != item['context'], item['eval_context'])
-                )
-                filt_len = len(item['eval_context'])
-                print('Filtered the same context ({} to {})'.format(
-                    org_len, filt_len)
                 )
 
             # Calculate sparse vectors, and TF-IDF scores 
