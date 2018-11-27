@@ -59,6 +59,9 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--metadata', default=False, action='store_true')
         self.add_argument('--mem_info', default=False, action='store_true')
 
+        # Random seed
+        self.add_argument('--seed', type=int, default=1)
+
     def parse_args(self, **kwargs):
         args = super().parse_args()
         if args.draft:
