@@ -13,6 +13,7 @@ class ArgumentParser(base.ArgumentParser):
 
         # Metadata paths
         self.add_argument('--static_dir', type=str, default=os.path.join(home, 'data'))
+        self.add_argument('--glove_name', type=str, default='glove')
         self.add_argument('--glove_dir', type=str, default=None, help='location of GloVe')
         self.add_argument('--elmo_options_file', type=str, default=None)
         self.add_argument('--elmo_weights_file', type=str, default=None)
@@ -46,7 +47,7 @@ class ArgumentParser(base.ArgumentParser):
             args.glove_vocab_size = 102
 
         if args.glove_dir is None:
-            args.glove_dir = os.path.join(args.static_dir, 'glove')
+            args.glove_dir = os.path.join(args.static_dir, args.glove_name)
         if args.elmo_options_file is None:
             args.elmo_options_file = os.path.join(args.static_dir, 'elmo', 'options.json')
         if args.elmo_weights_file is None:
