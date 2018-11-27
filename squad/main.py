@@ -424,13 +424,13 @@ def main():
     argument_parser.add_arguments()
     args = argument_parser.parse_args()
 
-    # Make sure nothing is `random` above this
+    # Make sure nothing is *random* above this
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     if args.cuda:
         torch.backends.cudnn.deterministic = True
         torch.cuda.manual_seed(args.seed)
-    random.seed(args.seed)
-    np.random.seed(args.seed)
 
     if args.mode == 'train':
         train(args)
@@ -441,7 +441,7 @@ def main():
     elif args.mode.startswith('serve'):
         serve(args)
     else:
-        raise Exception()
+        raise ValueError(args.mode)
 
 
 if __name__ == "__main__":
