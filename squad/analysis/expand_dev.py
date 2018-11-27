@@ -64,7 +64,7 @@ def _split_doc(doc):
 
 
 # Load unique squad docs and questions (separately)
-def squad_docs_ques(squad, title_split='_'):
+def squad_docs_ques(squad, title_split='_', include_q=True):
     squad_docs = {}
     squad_ques = {}
     for item in squad:
@@ -73,7 +73,8 @@ def squad_docs_ques(squad, title_split='_'):
             squad_docs[title] = list()
         if item['context'] not in squad_docs[title]:
             squad_docs[title].append(item['context'])
-        squad_ques[item['id']] = item['question']
+        if include_q:
+            squad_ques[item['id']] = item['question']
     return squad_docs, squad_ques
 
 
@@ -180,7 +181,7 @@ if __name__ == '__main__':
         assert 'closest_docs_{}'.format(args.n_docs) in squad[0].keys()
 
     # Gather squad documents
-    squad_docs, _ = squad_docs_ques(squad, title_split=' ')
+    squad_docs, _ = squad_docs_ques(squad, title_split=' ', include_q=False)
 
     # For draft version
     if args.draft:
