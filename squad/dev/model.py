@@ -381,15 +381,34 @@ class Model(baseline.Model):
         return return_
 
     def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
-        l = (context_glove_idxs > 0).sum(1)
         mx = (context_glove_idxs == 0).float() * -1e9
         x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
-        xd1 = self.context_start(x, mx)
+        out = self._get_context(context_glove_idxs, x, mx, self.context_start, self.context_end)
+        if self.multimodal:
+            modules = dict(self.named_children())
+            for i in range(self.num_mods):
+                out_i = self._get_context(context_glove_idxs, x, mx, modules['context_start%d' % i],
+                                          modules['context_end%d' % i])
+                for each_out, each_out_i in zip(out, out_i):
+                    each_out[0].extend(each_out_i[0])
+                    each_out[1] = torch.cat([each_out[1], each_out_i[1]], 0)
+                    if self.sparse:
+                        each_out[2][0] = torch.cat([each_out[2][0], each_out_i[2][0]], 0)
+                        each_out[2][1] = torch.cat([each_out[2][1], each_out_i[2][1]], 0)
+                    if self.phrase_filter:
+                        each_out[3] = torch.cat([each_out[3], each_out_i[3]], 0)
+        return out
+
+    def _get_context(self, context_glove_idxs, x, mx, context_start, context_end):
+        l = (context_glove_idxs > 0).sum(1)
+        xd1 = context_start(x, mx)
         x1, xs1, xsi1 = xd1['dense'], xd1['sparse'], context_glove_idxs
-        xd2 = self.context_end(x, mx)
+        xd2 = context_end(x, mx)
         x2, xs2, xsi2 = xd2['dense'], xd2['sparse'], context_glove_idxs
+
         if self.phrase_filter:
             pf = self.phrase_filter_model(x1, x2)
+
         out = []
         for k, (lb, x1b, x2b) in enumerate(zip(l, x1, x2)):
             if xs1 is not None:
@@ -422,13 +441,13 @@ class Model(baseline.Model):
             else:
                 sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
                 idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
-                sparse = (idx_cat, sparse_cat, 800004)
+                sparse = [idx_cat, sparse_cat, 800004]
             if self.phrase_filter:
                 fsp_stack = torch.stack(fsp_list, 0)
             else:
                 fsp_stack = None
-            out.append((tuple(pos_list), dense, sparse, fsp_stack))
-        return tuple(out)
+            out.append([pos_list, dense, sparse, fsp_stack])
+        return out
 
     def get_question(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None,
                      **kwargs):
