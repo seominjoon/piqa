@@ -198,6 +198,11 @@ if __name__ == '__main__':
             for split_title in item['closest_docs_{}'.format(
                                     args.n_docs)][0]:
                 text = db.get_doc_text(split_title)
+
+                # Skip short text
+                if all([len(par) < 500 for par in _split_doc(text)]):
+                    continue
+
                 for split_idx, split in enumerate(_split_doc(text)):
                     if split_idx == 0: # skip titles
                         curr_title = split
@@ -232,7 +237,16 @@ if __name__ == '__main__':
         from scipy.sparse import vstack
 
         for item in tqdm(squad):
-            assert item['context'] not in item['eval_context']
+            # Filter the same context
+            if item['context'] in item['eval_context']:
+                org_len = len(item['eval_context'])
+                item['eval_context'] = list(
+                    filter(lambda x: x != item['context'], item['eval_context'])
+                )
+                filt_len = len(item['eval_context'])
+                print('Filtered the same context ({} to {})'.format(
+                    org_len, filt_len)
+                )
 
             # Calculate sparse vectors, and TF-IDF scores 
             eval_spvec = [ranker.text2spvec(t) 
