@@ -47,8 +47,8 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
         for title_idx, title in enumerate(aug_docs):
             doc_idx = ranker.get_doc_index(title)
             doc_idxs.append(doc_idx)
-            idx2title[doc_idx] = title
-            title2idx[title] = doc_idx
+            idx2title[title_idx] = title
+            title2idx[title] = title_idx
 
         # Select doc idxs only
         doc_tfidf_mat = ranker.doc_mat[:,np.array(doc_idxs)]
