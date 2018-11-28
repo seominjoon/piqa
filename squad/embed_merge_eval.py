@@ -167,7 +167,7 @@ if __name__ == '__main__':
         args.large_rand_path = os.path.join(nsml_data_home,
             'dev-v1.1-large-rand-par100.json')
         args.large_tfidf_path = os.path.join(nsml_data_home,
-            'dev-v1.1-large-tfidf-par100.json')
+            'dev-v1.1-large-tfidf-doc30-par100.json')
 
     # Path check
     for key, val in args.__dict__.items():
