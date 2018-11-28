@@ -47,15 +47,12 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
         for title_idx, title in enumerate(aug_docs):
             doc_idx = ranker.get_doc_index(title)
             doc_idxs.append(doc_idx)
-            idx2title[doc_idx] = title
-            title2idx[title] = doc_idx
+            idx2title[title_idx] = title
+            title2idx[title] = title_idx
 
         # Select doc idxs only
-        doc_tfidf_mat = ranker.doc_mat[:,np.array(doc_idxs)].toarray()
-        print(doc_tfidf_mat.shape, type(doc_tfidf_mat))
-        doc_tfidf_mat = np.transpose(doc_tfidf_mat).tocsr()
-        print(doc_tfidf_mat.shape, type(doc_tfidf_mat))
-        exit()
+        doc_tfidf_mat = ranker.doc_mat[:,np.array(doc_idxs)]
+        doc_tfidf_mat = csr_matrix.transpose(doc_tfidf_mat).tocsr()
         
         # Save as pickle
         doc_tfidf_path = os.path.join(context_tfidf_dir + 'neg_doc_mat.pkl')

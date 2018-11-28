@@ -25,13 +25,14 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
     
     c_embed_cmd = ("python main.py analysis --mode embed_context {}" +
                    " --load_dir {} --iteration {} --test_path {}" +
-                   " --context_emb_dir {} --max_eval_par {}").format(
+                   " --context_emb_dir {} --max_eval_par {}{}").format(
         '--cuda' if nsml else '--draft',
         load_dir,
         iteration,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
         context_emb_dir,
-        max_eval_par
+        max_eval_par,
+        '--glove_name glove_squad' if nsml else ''
     )
     q_embed_cmd = ("python main.py baseline --mode embed_question {}" +
                    " --load_dir {} --iteration {} --test_path {}"
@@ -40,7 +41,8 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
         load_dir,
         iteration,
         s_question_path,
-        question_emb_dir
+        question_emb_dir,
+        '--glove_name glove_squad' if nsml else ''
     )
     merge_cmd = "python merge.py {} {} {} {}".format(
         squad_path,
@@ -75,7 +77,8 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         iteration,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
         context_emb_dir,
-        max_eval_par
+        max_eval_par,
+        '--glove_name glove_squad' if nsml else ''
     )
     q_embed_cmd = ("python main.py baseline --mode embed_question {}" +
                    " --load_dir {} --iteration {} --test_path {}"
@@ -84,7 +87,8 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         load_dir,
         iteration,
         s_question_path,
-        question_emb_dir
+        question_emb_dir,
+        '--glove_name glove_squad' if nsml else ''
     )
     merge_cmd = "python tfidf_merge.py {} {} {} {} {} {}{}".format(
         squad_path,

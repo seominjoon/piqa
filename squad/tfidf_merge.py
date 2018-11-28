@@ -5,6 +5,7 @@ import os
 import argparse
 import json
 import sys
+import pickle
 
 import scipy.sparse
 import numpy as np
@@ -22,6 +23,16 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
 
     # Merge using tfidf concatenation
     tfidf_weight = kwargs['tfidf_weight']
+
+    # Load tfidf mats
+    neg_doc_mat_path = os.path.join(doc_tfidf_dir, 'neg_doc_mat.pkl')
+    pos_doc_mat_path = os.path.join(doc_tfidf_dir, 'pos_doc_mat.pkl')
+    assert os.path.exists(neg_doc_mat_path) and os.path.exists(pos_doc_mat_path)
+    with open(neg_doc_mat_path, 'rb') as f:
+        neg_doc_mat = pickle.load(f)
+    with open(pos_doc_mat_path, 'rb') as f:
+        pos_doc_mat = pickle.load(f)
+
     predictions = {}
     for cid, q_list in tqdm(c2q.items()):
 
@@ -29,48 +40,42 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         metadata_path = os.path.join(context_emb_dir, cid + '.metadata')
         if not os.path.exists(metadata_path):
             continue
-        print(metadata_path)
         assert os.path.exists(metadata_path)
         with open(metadata_path, 'r') as fp:
             metadata = json.load(fp)
 
         # Load neg doc tfidf vectors [(N-1) X V]
+        tfidf_vecs = []
         for neg_idx in range(metadata['num_eval_par']):
-            ndoc_title = '_'.join(
-                metadata['context_src_{}'.format(neg_idx)].split(' ')
+            ndoc_title = metadata['context_src_{}'.format(neg_idx)]
+            assert ndoc_title in neg_doc_mat[0]
+            neg_doc_idx = neg_doc_mat[0][ndoc_title]
+            neg_vec = neg_doc_mat[2][neg_doc_idx]
+            neg_vec = vstack(
+                [neg_vec] * metadata['num_phrases_{}'.format(neg_idx)]
             )
-            ndoc_title = ndoc_title.replace('/', "_")
-            ndoc_tfidf_path = os.path.join(
-                doc_tfidf_dir,
-                ndoc_title + '.tfidf.npz'
-            )
-            assert os.path.exists(ndoc_tfidf_path)
-            ndoc_tfidf_emb = load_npz(ndoc_tfidf_path)
-            print(ndoc_tfidf_emb.shape)
-            
+            tfidf_vecs.append(neg_vec)
 
         # Load pos doc tfidf vector [1 X V]
         doc_title = '_'.join(cid.split('_')[:-1])
-        doc_tfidf_path = os.path.join(
-            doc_tfidf_dir,
-            doc_title + '.tfidf.npz'
+        assert doc_title in pos_doc_mat
+        pos_vec = pos_doc_mat[doc_title]
+        pos_vec = vstack(
+            [pos_vec] * metadata['num_phrases_{}'.format(len(tfidf_vecs))]
         )
-        assert os.path.exists(doc_tfidf_path)
-        doc_tfidf_emb = load_npz(doc_tfidf_path)
-        print(doc_tfidf_emb.shape)
-        exit()
+        tfidf_vecs.append(pos_vec)
+        tfidf_vec = vstack(tfidf_vecs)
 
         # Load phrase vectors (supports dense vectors only) [P X D]
         phrase_emb_path = os.path.join(context_emb_dir, cid + '.npz')
         assert os.path.exists(phrase_emb_path)
         phrase_emb = np.load(phrase_emb_path)['arr_0']
+        assert phrase_emb.shape[0] == tfidf_vec.shape[0]
 
         # Concatenate doc_tfidf_emb and phrase_emb
-        # TODO: need to concatenate different doc_tfidf to each vector
-        doc_tfidf_emb = doc_tfidf_emb * tfidf_weight         
-        doc_tfidf_emb = vstack([doc_tfidf_emb] * phrase_emb.shape[0])
+        tfidf_vec = tfidf_vec * tfidf_weight         
         phrase_emb = csr_matrix(phrase_emb)
-        phrase_concat_emb = hstack([doc_tfidf_emb, phrase_emb])
+        phrase_concat_emb = hstack([tfidf_vec, phrase_emb])
 
         # Load question tfidf vectors [N X V]
         que_tfidf_paths = [
