@@ -127,6 +127,17 @@ class PhraseFilter(nn.Module):
                 'filter_softmax_prob': filter_softmax_prob}
 
 
+class DoubleLinear(nn.Module):
+    def __init__(self, in_size, mid_size, out_size):
+        super(DoubleLinear, self).__init__()
+        self.linear1 = nn.Linear(in_size, mid_size)
+        self.relu = nn.Tanh()
+        self.linear2 = nn.Linear(mid_size, out_size)
+
+    def forward(self, in_):
+        return self.linear2(self.relu(self.linear1(in_)))
+
+
 class Model(baseline.Model):
     def __init__(self,
                  char_vocab_size,
@@ -149,6 +160,8 @@ class Model(baseline.Model):
                  dual=False,
                  phrase_filter=False,
                  filter_th=0.0,
+                 multimodal=False,
+                 num_mods=1,
                  **kwargs):
         super(Model, self).__init__(char_vocab_size,
                                     glove_vocab_size,
@@ -185,13 +198,34 @@ class Model(baseline.Model):
                                              normalize=normalize)
         self.dual = dual
         if dual:
-            self.decoder = Decoder(self.embedding.glove_embedding.embedding,
-                                   2 * hidden_size * num_heads, num_layers, dropout)
+            self.decoder1 = Decoder(self.embedding.glove_embedding.embedding,
+                                    2 * hidden_size * num_heads, num_layers, dropout)
+            self.decoder2 = Decoder(self.embedding.glove_embedding.embedding,
+                                    2 * hidden_size * num_heads, num_layers, dropout)
+            self.dual_dummy1 = nn.Parameter(torch.rand(2 * hidden_size * num_heads))
+            self.dual_dummy2 = nn.Parameter(torch.rand(2 * hidden_size * num_heads))
 
         self.phrase_filter = phrase_filter
         if phrase_filter:
             self.phrase_filter_model = PhraseFilter(2 * hidden_size * num_heads, dropout)
             self.filter_th = filter_th
+
+        self.multimodal = multimodal
+        if multimodal:
+            self.num_mods = num_mods
+            for i in range(num_mods):
+                self.add_module('context_start%d' % i,
+                                ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                sparse_activation=sparse_activation, num_layers=num_layers,
+                                                normalize=normalize))
+                self.add_module('context_end%d' % i,
+                                ContextBoundary(context_input_size, hidden_size, dropout, num_heads, sparse=sparse,
+                                                sparse_activation=sparse_activation, num_layers=num_layers,
+                                                normalize=normalize))
+
+        if self.metric == 'mlp':
+            self.mlp1 = nn.Linear(6 * hidden_size * num_heads, 1)
+            self.mlp2 = nn.Linear(6 * hidden_size * num_heads, 1)
 
     def forward(self,
                 context_char_idxs,
@@ -203,6 +237,8 @@ class Model(baseline.Model):
                 context_elmo_idxs=None,
                 question_elmo_idxs=None,
                 num_samples=None,
+                answer_word_starts=None,
+                answer_word_ends=None,
                 **kwargs):
         q = self.question_embedding(question_char_idxs, question_glove_idxs, question_word_idxs, ex=question_elmo_idxs)
         x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
@@ -224,25 +260,62 @@ class Model(baseline.Model):
         x1, xs1 = hd1['dense'], hd1['sparse']
         x2, xs2 = hd2['dense'], hd2['sparse']
 
-        assert self.metric in ('ip', 'cosine', 'l2')
-
-        logits1, logits2 = 0.0, 0.0
-        if self.dense:
-            logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
-            logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
-        if self.sparse:
-            logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
-                [2, 3])
-            logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
-                [2, 3])
-
-        if self.metric == 'l2':
-            if self.dense:
-                logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
-                logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+        if self.multimodal:
+            modules = dict(self.named_children())
+            x1m, x2m, xs1m, xs2m = [], [], [], []
+            for i in range(self.num_mods):
+                hd1c = modules['context_start%d' % i](x, mx)
+                hd2c = modules['context_end%d' % i](x, mx)
+                x1c, xs1c = hd1c['dense'], hd1c['sparse']
+                x2c, xs2c = hd2c['dense'], hd2c['sparse']
+                x1m.append(x1c)
+                x2m.append(x2c)
+                xs1m.append(xs1c)
+                xs2m.append(xs2c)
+            x1 = torch.cat([x1] + x1m, 0)
+            x2 = torch.cat([x2] + x2m, 0)
+            q1 = torch.cat([q1] * (self.num_mods + 1), 0)
+            q2 = torch.cat([q2] * (self.num_mods + 1), 0)
+            mx = torch.cat([mx] * (self.num_mods + 1), 0)
             if self.sparse:
-                logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
-                logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+                xs1 = torch.cat([xs1] + xs1m, 0)
+                xs2 = torch.cat([xs2] + xs2m, 0)
+                qs1 = torch.cat([qs1] * (self.num_mods + 1), 0)
+                qs2 = torch.cat([qs2] * (self.num_mods + 1), 0)
+                mxq = torch.cat([mxq] * (self.num_mods + 1), 0)
+            if self.dual:
+                answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
+                answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
+                question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
+            if self.phrase_filter:
+                context_glove_idxs = torch.cat([context_glove_idxs] * (self.num_mods + 1), 0)
+
+        if self.metric in ('ip', 'cosine', 'l2'):
+            logits1, logits2 = 0.0, 0.0
+            if self.dense:
+                logits1 = logits1 + torch.sum(x1 * q1.unsqueeze(1), 2) + mx
+                logits2 = logits2 + torch.sum(x2 * q2.unsqueeze(1), 2) + mx
+            if self.sparse:
+                logits1 = logits1 + (xs1.unsqueeze(-1) * qs1.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                    [2, 3])
+                logits2 = logits2 + (xs2.unsqueeze(-1) * qs2.unsqueeze(1).unsqueeze(1) * mxq.unsqueeze(1).float()).sum(
+                    [2, 3])
+
+            if self.metric == 'l2':
+                if self.dense:
+                    logits1 = logits1 - 0.5 * (torch.sum(x1 * x1, 2) + torch.sum(q1 * q1, 1).unsqueeze(1))
+                    logits2 = logits2 - 0.5 * (torch.sum(x2 * x2, 2) + torch.sum(q2 * q2, 1).unsqueeze(1))
+                if self.sparse:
+                    logits1 = logits1 - 0.5 * (torch.sum(xs1 * xs1, 2) + torch.sum(qs1 * qs1, 1).unsqueeze(1))
+                    logits2 = logits2 - 0.5 * (torch.sum(xs2 * xs2, 2) + torch.sum(qs2 * qs2, 1).unsqueeze(1))
+        elif self.metric == 'mlp':
+            assert not self.sparse
+            q1a = q1.unsqueeze(1).repeat(1, x1.size(1), 1)
+            q2a = q2.unsqueeze(1).repeat(1, x2.size(1), 1)
+            concat1 = torch.cat([x1, q1a, x1 * q1a], 2)
+            concat2 = torch.cat([x2, q2a, x2 * q2a], 2)
+            logits1 = self.mlp1(concat1).squeeze(2) + mx
+            logits2 = self.mlp2(concat2).squeeze(2) + mx
 
         prob1 = self.softmax(logits1)
         prob2 = self.softmax(logits2)
@@ -258,8 +331,14 @@ class Model(baseline.Model):
         mask = (torch.ones(*prob.size()[1:]).triu() - torch.ones(*prob.size()[1:]).triu(self.max_ans_len)).to(
             prob.device)
         prob = prob * mask
-        _, yp1 = prob.max(2)[0].max(1)
-        _, yp2 = prob.max(1)[0].max(1)
+
+        if self.multimodal:
+            prob = torch.stack(prob.chunk(self.num_mods + 1, dim=0)).max(0)[0]
+            _, yp1 = prob.max(2)[0].max(1)
+            _, yp2 = prob.max(1)[0].max(1)
+        else:
+            _, yp1 = prob.max(2)[0].max(1)
+            _, yp2 = prob.max(1)[0].max(1)
 
         return_ = {'logits1': logits1,
                    'logits2': logits2,
@@ -279,13 +358,13 @@ class Model(baseline.Model):
                    'qsi2': question_glove_idxs}
 
         if self.dual:
-            answer_word_starts = kwargs['answer_word_starts']
-            answer_word_ends = kwargs['answer_word_ends']
-            eye = torch.eye(context_glove_idxs.size(1)).to(context_glove_idxs.device)
-            init1 = torch.embedding(eye, answer_word_starts[:, 0] - 1).unsqueeze(1).matmul(x1).squeeze(1)
-            init2 = torch.embedding(eye, answer_word_ends[:, 0] - 1).unsqueeze(1).matmul(x2).squeeze(1)
-            decoder_logits1 = self.decoder(init1, question_idxs=question_glove_idxs)
-            decoder_logits2 = self.decoder(init2, question_idxs=question_glove_idxs)
+            eye = torch.eye(context_glove_idxs.size(1) + 1).to(context_glove_idxs.device)
+            x1a = torch.cat([self.dual_dummy1.unsqueeze(0).unsqueeze(0).repeat(x1.size(0), 1, 1), x1], 1)
+            x2a = torch.cat([self.dual_dummy2.unsqueeze(0).unsqueeze(0).repeat(x2.size(0), 1, 1), x2], 1)
+            init1 = torch.embedding(eye, answer_word_starts[:, 0]).unsqueeze(1).matmul(x1a).squeeze(1)
+            init2 = torch.embedding(eye, answer_word_ends[:, 0]).unsqueeze(1).matmul(x2a).squeeze(1)
+            decoder_logits1 = self.decoder1(init1, question_idxs=question_glove_idxs)
+            decoder_logits2 = self.decoder2(init2, question_idxs=question_glove_idxs)
             return_['decoder_logits1'] = decoder_logits1
             return_['decoder_logits2'] = decoder_logits2
 
@@ -293,7 +372,7 @@ class Model(baseline.Model):
             context_len = (context_glove_idxs > 0).sum(1)
             nvpws = []
             for th in (25, 50, 75):
-                nvpw = (pf['filter_sigmoid_prob'] > th/100.0).float().sum([1, 2]) / context_len.float()
+                nvpw = (pf['filter_sigmoid_prob'] > th / 100.0).float().sum([1, 2]) / context_len.float()
                 return_['nvpw%2r' % th] = nvpw
                 nvpws.append(nvpw.mean().item())
             return_['filter_logits'] = pf['filter_logits']
@@ -302,15 +381,34 @@ class Model(baseline.Model):
         return return_
 
     def get_context(self, context_char_idxs, context_glove_idxs, context_word_idxs, context_elmo_idxs=None, **kwargs):
-        l = (context_glove_idxs > 0).sum(1)
         mx = (context_glove_idxs == 0).float() * -1e9
         x = self.context_embedding(context_char_idxs, context_glove_idxs, context_word_idxs, ex=context_elmo_idxs)
-        xd1 = self.context_start(x, mx)
+        out = self._get_context(context_glove_idxs, x, mx, self.context_start, self.context_end)
+        if self.multimodal:
+            modules = dict(self.named_children())
+            for i in range(self.num_mods):
+                out_i = self._get_context(context_glove_idxs, x, mx, modules['context_start%d' % i],
+                                          modules['context_end%d' % i])
+                for each_out, each_out_i in zip(out, out_i):
+                    each_out[0].extend(each_out_i[0])
+                    each_out[1] = torch.cat([each_out[1], each_out_i[1]], 0)
+                    if self.sparse:
+                        each_out[2][0] = torch.cat([each_out[2][0], each_out_i[2][0]], 0)
+                        each_out[2][1] = torch.cat([each_out[2][1], each_out_i[2][1]], 0)
+                    if self.phrase_filter:
+                        each_out[3] = torch.cat([each_out[3], each_out_i[3]], 0)
+        return out
+
+    def _get_context(self, context_glove_idxs, x, mx, context_start, context_end):
+        l = (context_glove_idxs > 0).sum(1)
+        xd1 = context_start(x, mx)
         x1, xs1, xsi1 = xd1['dense'], xd1['sparse'], context_glove_idxs
-        xd2 = self.context_end(x, mx)
+        xd2 = context_end(x, mx)
         x2, xs2, xsi2 = xd2['dense'], xd2['sparse'], context_glove_idxs
+
         if self.phrase_filter:
             pf = self.phrase_filter_model(x1, x2)
+
         out = []
         for k, (lb, x1b, x2b) in enumerate(zip(l, x1, x2)):
             if xs1 is not None:
@@ -323,6 +421,11 @@ class Model(baseline.Model):
             fsp_list = []
             for i in range(lb):
                 for j in range(i, min(i + self.max_ans_len, lb)):
+                    if self.phrase_filter:
+                        prob = pf['filter_sigmoid_prob'][k, i, j]
+                        if prob < self.filter_th:
+                            continue
+                        fsp_list.append(prob)
                     vec = torch.cat([x1b[i], x2b[j]], 0)
                     pos_list.append((i, j))
                     vec_list.append(vec)
@@ -331,8 +434,6 @@ class Model(baseline.Model):
                         idx = torch.cat([xsi1b[:lb], xsi2b[:lb] + 400002], 0)
                         sparse_list.append(sparse)
                         idx_list.append(idx)
-                    if self.phrase_filter:
-                        fsp_list.append(pf['filter_sigmoid_prob'][k, i, j])
 
             dense = torch.stack(vec_list, 0)
             if xs1 is None:
@@ -340,13 +441,13 @@ class Model(baseline.Model):
             else:
                 sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
                 idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
-                sparse = (idx_cat, sparse_cat, 800004)
+                sparse = [idx_cat, sparse_cat, 800004]
             if self.phrase_filter:
                 fsp_stack = torch.stack(fsp_list, 0)
             else:
                 fsp_stack = None
-            out.append((tuple(pos_list), dense, sparse, fsp_stack))
-        return tuple(out)
+            out.append([pos_list, dense, sparse, fsp_stack])
+        return out
 
     def get_question(self, question_char_idxs, question_glove_idxs, question_word_idxs, question_elmo_idxs=None,
                      **kwargs):
@@ -405,20 +506,64 @@ class Decoder(nn.Module):
 
 
 class Loss(baseline.Loss):
-    def __init__(self, dual, dual_init, dual_hl, phrase_filter, filter_init, **kwargs):
+    def __init__(self, sparse, dual, dual_init, dual_hl, phrase_filter, filter_init, multimodal, num_mods, multi_init,
+                 multi_hl,
+                 **kwargs):
         super(Loss, self).__init__(**kwargs)
+        self.sparse = sparse
         self.dual = dual
         self.dual_init = dual_init
         self.dual_hl = dual_hl
         self.phrase_filter = phrase_filter
         self.filter_init = filter_init
+        self.multimodal = multimodal
+        self.num_mods = num_mods
+        self.multi_init = multi_init
+        self.multi_hl = multi_hl
+        self.weight = nn.Parameter(torch.rand(1))
+        self.filter_dummy = nn.Parameter(torch.rand(1))
 
     def forward(self, logits1, logits2, answer_word_starts, answer_word_ends, question_glove_idxs=None,
-                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None, **kwargs):
-        loss = super(Loss, self).forward(logits1, logits2, answer_word_starts, answer_word_ends)
+                decoder_logits1=None, decoder_logits2=None, filter_logits=None, step=None,
+                x1=None, x2=None, xs1=None, xs2=None, **kwargs):
+
+        weight = self.weight.unsqueeze(0).repeat(logits1.size(0), 1)
+        logits1 = torch.cat([weight, logits1], 1)
+        logits2 = torch.cat([weight, logits2], 1)
+
+        loss = 0.0
+        if self.multimodal:
+            answer_word_starts = torch.cat([answer_word_starts] * (self.num_mods + 1), 0)
+            answer_word_ends = torch.cat([answer_word_ends] * (self.num_mods + 1), 0)
+            question_glove_idxs = torch.cat([question_glove_idxs] * (self.num_mods + 1), 0)
+
+            if self.multi_init > 0.0:
+                # diversity regularization
+                def get_loss(x):
+                    l = torch.stack(x.chunk(self.num_mods + 1, 0), dim=2)
+                    div = l.matmul(l.transpose(2, 3)) * (1.0 - torch.eye(l.size(2)).to(l.device))
+                    m = div.abs().mean()
+                    log2 = torch.log(torch.tensor(2.0).to(m.device))
+                    step_ = torch.tensor(step).to(m.device).float()
+                    cf = self.multi_init * torch.exp(-log2 * step_ / self.multi_hl)
+                    return cf * m
+
+                loss = loss + get_loss(x1)
+                loss = loss + get_loss(x2)
+                if self.sparse:
+                    loss = loss + get_loss(xs1)
+                    loss = loss + get_loss(xs1)
+
+        loss1 = self.cel(logits1, answer_word_starts[:, 0])
+        loss2 = self.cel(logits2, answer_word_ends[:, 0])
+        loss = loss + loss1 + loss2
+
         if self.phrase_filter:
-            answer_word_starts = answer_word_starts - 1
-            answer_word_ends = answer_word_ends - 1
+            filter_dummy1 = self.filter_dummy.unsqueeze(0).unsqueeze(0).repeat(filter_logits.size(0),
+                                                                               filter_logits.size(1), 1)
+            filter_dummy2 = self.filter_dummy.unsqueeze(0).unsqueeze(0).repeat(filter_logits.size(0), 1,
+                                                                               filter_logits.size(2) + 1)
+            filter_logits = torch.cat([filter_dummy2, torch.cat([filter_dummy1, filter_logits], 2)], 1)
             eye = torch.eye(logits1.size(1)).to(logits1.device)
             target1 = torch.embedding(eye, answer_word_starts[:, 0])
             target2 = torch.embedding(eye, answer_word_ends[:, 0])
@@ -429,11 +574,14 @@ class Loss(baseline.Loss):
             loss = loss + self.filter_init * filter_loss
         if not self.dual:
             return loss
-        decoder_loss1 = self.cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
-                                 question_glove_idxs.view(-1))
-        decoder_loss2 = self.cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
-                                 question_glove_idxs.view(-1))
+        na_mask = answer_word_starts[:, 0] > 0
+        cel = nn.CrossEntropyLoss(reduction='none')
+        decoder_loss1 = cel(decoder_logits1.view(-1, decoder_logits1.size(2)),
+                            question_glove_idxs.view(-1))
+        decoder_loss2 = cel(decoder_logits2.view(-1, decoder_logits2.size(2)),
+                            question_glove_idxs.view(-1))
         decoder_loss = decoder_loss1 + decoder_loss2
+        decoder_loss = (na_mask.unsqueeze(1).float() * decoder_loss).mean()
         log2 = torch.log(torch.tensor(2.0).to(decoder_loss.device))
         step = torch.tensor(step).to(decoder_loss.device).float()
         cf = self.dual_init * torch.exp(-log2 * step / self.dual_hl)

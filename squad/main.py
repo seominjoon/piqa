@@ -3,12 +3,14 @@ import time
 from collections import OrderedDict
 from pprint import pprint
 import importlib
+import random
 
 from sklearn.neighbors import NearestNeighbors
 import scipy.sparse
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+import torch.backends.cudnn
 
 import base
 
@@ -91,8 +93,8 @@ def train(args):
             model_output = model(step=step, **train_batch)
             train_results = processor.postprocess_batch(train_dataset, train_batch, model_output)
             train_loss = loss_model(step=step, **model_output, **train_batch)
-            train_f1 = float(np.mean([result['f1'] for result in train_results]))
-            train_em = float(np.mean([result['em'] for result in train_results]))
+            train_f1 = float(np.mean([result['f1'] for result in train_results if 'f1' in result]))
+            train_em = float(np.mean([result['em'] for result in train_results if 'em' in result]))
 
             # optimize
             optimizer.zero_grad()
@@ -421,6 +423,15 @@ def main():
     argument_parser = ArgumentParser()
     argument_parser.add_arguments()
     args = argument_parser.parse_args()
+
+    # Make sure nothing is *random* above this
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if args.cuda:
+        torch.backends.cudnn.deterministic = True
+        torch.cuda.manual_seed(args.seed)
+
     if args.mode == 'train':
         train(args)
     elif args.mode == 'test':
@@ -430,7 +441,7 @@ def main():
     elif args.mode.startswith('serve'):
         serve(args)
     else:
-        raise Exception()
+        raise ValueError(args.mode)
 
 
 if __name__ == "__main__":

@@ -7,18 +7,26 @@ class ArgumentParser(baseline.ArgumentParser):
 
     def add_arguments(self):
         super().add_arguments()
+        # Phrase filtering
+        self.add_argument('--phrase_filter', default=False, action='store_true')
+        self.add_argument('--filter_init', type=float, default=0.1)
+        self.add_argument('--filter_th', type=float, default=0.0)
 
+        # Sparsity (S)
         self.add_argument('--sparse', default=False, action='store_true')
         self.add_argument('--sparse_activation', type=str, default='relu')
         self.add_argument('--no_dense', default=False, action='store_true')
 
+        # Duality (D)
         self.add_argument('--dual', default=False, action='store_true')
         self.add_argument('--dual_init', type=float, default=5.0)
         self.add_argument('--dual_hl', type=float, default=10000)
 
-        self.add_argument('--phrase_filter', default=False, action='store_true')
-        self.add_argument('--filter_init', type=float, default=0.1)
-        self.add_argument('--filter_th', type=float, default=0.0)
+        # Multimodality (M)
+        self.add_argument('--multimodal', default=False, action='store_true')
+        self.add_argument('--num_mods', type=int, default=1)
+        self.add_argument('--multi_init', type=float, default=0.0)
+        self.add_argument('--multi_hl', type=float, default=2000)
 
     def parse_args(self, **kwargs):
         args = super().parse_args()
