@@ -27,7 +27,7 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
     squad = _load_squad(kwargs['squad_path'])
     squad_docs, squad_ques = squad_docs_ques(squad)
 
-    # Get negative paragraph's source doucment
+    # Get negative paragraph's source doucment (maybe as a one file)
     aug_docs = set()
     with open(kwargs['analysis_path'], 'r') as fp:
         aug_squad = json.load(fp)
