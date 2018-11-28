@@ -32,7 +32,8 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
         context_emb_dir,
         max_eval_par,
-        ' --glove_name glove_squad' if nsml else ''
+        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
+         if nsml eles '')
     )
     q_embed_cmd = ("python main.py baseline --mode embed_question {}" +
                    " --load_dir {} --iteration {} --test_path {}"
@@ -42,7 +43,8 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
         iteration,
         s_question_path,
         question_emb_dir,
-        ' --glove_name glove_squad' if nsml else ''
+        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
+         if nsml eles '')
     )
     merge_cmd = "python merge.py {} {} {} {}".format(
         squad_path,
@@ -79,7 +81,8 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
         context_emb_dir,
         max_eval_par,
-        ' --glove_name glove_squad' if nsml else ''
+        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
+         if nsml eles '')
     )
     q_embed_cmd = ("python main.py baseline --mode embed_question {}" +
                    " --load_dir {} --iteration {} --test_path {}"
@@ -89,7 +92,8 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         iteration,
         s_question_path,
         question_emb_dir,
-        ' --glove_name glove_squad' if nsml else ''
+        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
+         if nsml eles '')
     )
     merge_cmd = "python tfidf_merge.py {} {} {} {} {} {}{}".format(
         squad_path,
