@@ -35,7 +35,7 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
         (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
          if nsml else '')
     )
-    q_embed_cmd = ("python main.py baseline --mode embed_question {}" +
+    q_embed_cmd = ("python main.py dev --mode embed_question {}" +
                    " --load_dir {} --iteration {} --test_path {}"
                    " --question_emb_dir {}{}").format(
         '--cuda' if nsml else '--draft',
@@ -84,7 +84,7 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
          if nsml else '')
     )
-    q_embed_cmd = ("python main.py baseline --mode embed_question {}" +
+    q_embed_cmd = ("python main.py dev --mode embed_question {}" +
                    " --load_dir {} --iteration {} --test_path {}"
                    " --question_emb_dir {}{}").format(
         '--cuda' if nsml else '--draft',
@@ -102,7 +102,7 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         question_emb_dir,
         que_tfidf_dir,
         pred_path,
-        '--draft' if not nsml else ''
+        ' --draft' if not nsml else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
@@ -141,6 +141,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_eval_par', type=int, default=0)
     parser.add_argument('--large_type', type=str, default='rand',
                         help='rand|tfidf')
+    parser.add_argument('--tfidf_weight', type=float, default=1e+1,
+                        help='tfidf concat weighting')
 
     # Dirs
     parser.add_argument('--context_emb_dir', type=str, default=CONTEXT_DIR)
