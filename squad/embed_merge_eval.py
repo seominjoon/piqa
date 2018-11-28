@@ -169,10 +169,10 @@ if __name__ == '__main__':
         args.large_tfidf_path = os.path.join(nsml_data_home,
             'dev-v1.1-large-tfidf-par100.json')
 
-    # Path, Dir check
+    # Path check
     for key, val in args.__dict__.items():
         if key == 'pred_path': continue
-        if 'dir' in key or 'path' in key:
+        if 'path' in key:
             assert os.path.exists(val), '{} does not exist'.format(val)
 
     # Get commands based on the mode
