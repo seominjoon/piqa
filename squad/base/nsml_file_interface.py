@@ -8,9 +8,9 @@ import base.file_interface
 
 class FileInterface(base.file_interface.FileInterface):
     def __init__(self, cuda, mode, save_dir, load_dir, report_path, pred_path, question_emb_dir, context_emb_dir,
-                 cache_path, dump_dir, train_path, test_path, draft, **kwargs):
-        train_path = os.path.join(nsml.DATASET_PATH, 'train', 'train-v1.1.json')
-        test_path = os.path.join(nsml.DATASET_PATH, 'train', 'dev-v1.1.json')
+                 cache_path, dump_dir, train_path, test_path, draft, train_name, test_name, **kwargs):
+        train_path = os.path.join(nsml.DATASET_PATH, 'train', train_name)
+        test_path = os.path.join(nsml.DATASET_PATH, 'train', test_name)
         save_dir = './save/'
         report_path = './report.csv'
         dump_dir = './dump/'
