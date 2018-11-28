@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 import numpy as np
+import pickle
 
 from scipy.sparse import save_npz, csr_matrix
 from tqdm import tqdm
@@ -39,33 +40,43 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
         print('Dump {} documents from neg pars'.format(len(aug_docs)))
 
         # Save tf-idf vectors of negative docs 
+        title2idx = {}
+        idx2title = {}
         doc_idxs = []
-        for title in sorted(aug_docs):
+        aug_docs = sorted(list(aug_docs))
+        for title_idx, title in enumerate(aug_docs):
             doc_idx = ranker.get_doc_index(title)
             doc_idxs.append(doc_idx)
-        doc_tfidf_mat = ranker.doc_mat[:,np.array(doc_idxs)]
-        del ranker
-        doc_tfidf_mat = csr_matrix.transpose(doc_tfidf_mat)
-        print(doc_tfidf_mat.shape)
+            idx2title[doc_idx] = title
+            title2idx[title] = doc_idx
 
-        # Be careful of the same ordering
-        for idx, title in tqdm(enumerate(sorted(aug_docs))):
-            doc_tfidf_emb = doc_tfidf_mat[idx] 
-            title = title.replace('/', "_")
-            context_path = os.path.join(
-                context_tfidf_dir, '_'.join(title.split(' ')) + '.tfidf'
+        # Select doc idxs only
+        doc_tfidf_mat = ranker.doc_mat[:,np.array(doc_idxs)].toarray()
+        print(doc_tfidf_mat.shape, type(doc_tfidf_mat))
+        doc_tfidf_mat = np.transpose(doc_tfidf_mat).tocsr()
+        print(doc_tfidf_mat.shape, type(doc_tfidf_mat))
+        exit()
+        
+        # Save as pickle
+        doc_tfidf_path = os.path.join(context_tfidf_dir + 'neg_doc_mat.pkl')
+        with open(doc_tfidf_path, 'wb') as f:
+            pickle.dump(
+                [title2idx, idx2title, doc_tfidf_mat], 
+                f, protocol=pickle.HIGHEST_PROTOCOL
             )
-            save_npz(context_path, doc_tfidf_emb)
-        print('Negative Document TF-IDF saved in {}'.format(context_tfidf_dir))
+        print('Negative Document TF-IDF saved as {}'.format(doc_tfidf_path))
 
     # Save tf-idf vector of documents
     if kwargs['dump_d']:
+        title2spvec = {}
         for title, doc in tqdm(squad_docs.items()):
             doc_tfidf_emb = ranker.text2spvec(' '.join(doc))
-            context_path = os.path.join(
-                context_tfidf_dir, title + '.tfidf'
-            )
-            save_npz(context_path, doc_tfidf_emb)
+            title2spvec[title] = doc_tfidf_emb
+
+        # Save as pickle
+        context_path = os.path.join(context_tfidf_dir, 'pos_doc_mat.pkl')
+        with open(context_path, 'wb') as f:
+            pickle.dump(title2spvec, f, protocol=pickle.HIGHEST_PROTOCOL)
         print('Document TF-IDF saved in {}'.format(context_tfidf_dir))
 
     # Save tf-idf vector of questions

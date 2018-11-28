@@ -14,7 +14,8 @@ from tqdm import tqdm
 
 
 # Append document tfidf vector to each paragraphs, then merge
-def concat_merge_tfidf(c2q, context_emb_dir, question_emb_dir, **kwargs):
+def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
+                       question_emb_dir, que_tfidf_dir, **kwargs):
     num_questions = sum([len(q) for q in c2q.values()])
     print('Number of contexts to process: {}'.format(len(c2q)))
     print('Number of questions to process: {}'.format(num_questions))
@@ -24,14 +25,40 @@ def concat_merge_tfidf(c2q, context_emb_dir, question_emb_dir, **kwargs):
     predictions = {}
     for cid, q_list in tqdm(c2q.items()):
 
-        # Load doc tfidf vector [1 X V]
+        # Load metadata for pharse to doc matching
+        metadata_path = os.path.join(context_emb_dir, cid + '.metadata')
+        if not os.path.exists(metadata_path):
+            continue
+        print(metadata_path)
+        assert os.path.exists(metadata_path)
+        with open(metadata_path, 'r') as fp:
+            metadata = json.load(fp)
+
+        # Load neg doc tfidf vectors [(N-1) X V]
+        for neg_idx in range(metadata['num_eval_par']):
+            ndoc_title = '_'.join(
+                metadata['context_src_{}'.format(neg_idx)].split(' ')
+            )
+            ndoc_title = ndoc_title.replace('/', "_")
+            ndoc_tfidf_path = os.path.join(
+                doc_tfidf_dir,
+                ndoc_title + '.tfidf.npz'
+            )
+            assert os.path.exists(ndoc_tfidf_path)
+            ndoc_tfidf_emb = load_npz(ndoc_tfidf_path)
+            print(ndoc_tfidf_emb.shape)
+            
+
+        # Load pos doc tfidf vector [1 X V]
         doc_title = '_'.join(cid.split('_')[:-1])
         doc_tfidf_path = os.path.join(
-            context_emb_dir,
+            doc_tfidf_dir,
             doc_title + '.tfidf.npz'
         )
         assert os.path.exists(doc_tfidf_path)
         doc_tfidf_emb = load_npz(doc_tfidf_path)
+        print(doc_tfidf_emb.shape)
+        exit()
 
         # Load phrase vectors (supports dense vectors only) [P X D]
         phrase_emb_path = os.path.join(context_emb_dir, cid + '.npz')
@@ -47,7 +74,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, question_emb_dir, **kwargs):
 
         # Load question tfidf vectors [N X V]
         que_tfidf_paths = [
-            os.path.join(question_emb_dir, q_id + '.tfidf.npz')
+            os.path.join(que_tfidf_dir, q_id + '.tfidf.npz')
             for q_id in q_list
         ]
         for path in que_tfidf_paths:
@@ -98,7 +125,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='script for appending tf-idf')
     parser.add_argument('data_path', help='Dataset file path')
     parser.add_argument('context_emb_dir', help='Context embedding directory')
+    parser.add_argument('doc_tfidf_dir', help='Document tfidf directory')
     parser.add_argument('question_emb_dir', help='Question embedding directory')
+    parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
     parser.add_argument('--tfidf-weight', type=float, default=1e+1,
                         help='TF-IDF vector weight')
