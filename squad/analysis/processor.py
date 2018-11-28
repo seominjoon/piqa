@@ -34,10 +34,12 @@ class Processor(dev.Processor):
             if c_idx < len(context_outputs) - 1:
                 context = example['eval_context'][c_idx]
                 context_spans = example['eval_context_spans'][c_idx]
+                context_src = example['eval_context_src'][c_idx]
             # Positive context
             else:
                 context = example['context']
                 context_spans = example['context_spans']
+                context_src = example['cid']
             phrases = tuple(
                 get_pred(context, context_spans, yp1, yp2) 
                 for yp1, yp2 in pos_tuple
@@ -55,6 +57,7 @@ class Processor(dev.Processor):
 
             # For metadata
             metadata['context_{}'.format(c_idx)] = context
+            metadata['context_src_{}'.format(c_idx)] = context_src
             metadata['num_phrases_{}'.format(c_idx)] = len(phrases)
             if c_idx == len(context_outputs) - 1:
                 metadata['answer_spans'] = tuple(
@@ -66,6 +69,7 @@ class Processor(dev.Processor):
             all_phrases += phrases
             all_out = out if all_out is None else np.append(all_out, out, 
                                                             axis=0)
+        metadata['num_eval_par'] = c_idx
 
         return example['cid'], all_phrases, all_out, metadata
 

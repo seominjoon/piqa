@@ -8,13 +8,16 @@ import random
 
 class FileInterface(dev.FileInterface):
     def __init__(self, **kwargs):
-        self.analysis = kwargs['analysis']
+        # self.analysis = kwargs['analysis']
         super(FileInterface, self).__init__(**kwargs)
 
     def load_test(self):
         with open(self._test_path, 'r') as fp:
             squad = json.load(fp)
+        return squad
 
+        # Deprecated
+        '''
         if self.analysis == 'large':
             return squad
         # Used by open_merge.py
@@ -26,6 +29,7 @@ class FileInterface(dev.FileInterface):
             return test_examples
         else:
             return super().load_test()
+        '''
 
     # Used by open_merge.py (deprecated)
     def question_load(self, emb_type='dense', shuffle=True):
