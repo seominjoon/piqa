@@ -8,6 +8,7 @@ Usage:
 import subprocess
 import argparse
 import os
+import time, datetime
 
 from pprint import pprint
 
@@ -17,7 +18,8 @@ def run_commands(cmds):
         print('Command #{}\n{}'.format(cmd_idx, cmd))
         status = subprocess.call(cmd.split(' '))
         if status != 0:
-            exit(status)
+            print('Failure with exit code: {}'.format(status))
+            break
 
 
 ##### For (TF-IDF)=N, (Model)=O, (P/E)=E #####
@@ -204,6 +206,7 @@ if __name__ == '__main__':
             assert os.path.exists(val), '{} does not exist'.format(val)
 
     # Get commands based on the mode
+    start = time.time()
     if args.mode == 'NOE':
         cmds = run_NOE(**args.__dict__)
     elif args.mode == 'YOP':
@@ -214,3 +217,4 @@ if __name__ == '__main__':
         raise NotImplementedError('Not supported mode: {}'.format(args.mode))
 
     run_commands(cmds)
+    print('Time: {}'.format(str(datetime.timedelta(seconds=time.time()-start))))
