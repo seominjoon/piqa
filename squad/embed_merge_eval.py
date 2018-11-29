@@ -163,7 +163,7 @@ if __name__ == '__main__':
 
     # Change arguments for NSML 
     if args.nsml:
-        nsml_data_home = '../data/squad_piqa_181128/train'
+        nsml_data_home = '../data/squad_piqa_181129/train'
         args.load_dir = 'piqateam/minjoon_squad_2/34'
         args.iteration = '35501'
         args.context_emb_dir = './context_emb'
