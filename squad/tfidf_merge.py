@@ -46,11 +46,12 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
 
         # Load neg doc tfidf vectors [(N-1) X V]
         tfidf_vecs = []
-        for neg_idx in range(metadata['num_eval_par']):
+        num_neg_doc = metadata['num_eval_par']
+        for neg_idx in range(num_neg_doc):
             ndoc_title = metadata['context_src_{}'.format(neg_idx)]
             num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
             if num_phrases == 0:
-                print('gotcha!', metadata['context_{}'])
+                print('No phrase:', metadata['context_{}'.format(neg_idx)], cid)
                 continue
 
             assert ndoc_title in neg_doc_mat[0]
@@ -68,7 +69,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         pos_vec = pos_doc_mat[doc_title]
         if mode == 'E':
             pos_vec = vstack(
-                [pos_vec] * metadata['num_phrases_{}'.format(len(tfidf_vecs))]
+                [pos_vec] * metadata['num_phrases_{}'.format(num_neg_doc)]
             )
         tfidf_vecs.append(pos_vec)
         tfidf_vec = vstack(tfidf_vecs)
@@ -78,7 +79,8 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         assert os.path.exists(phrase_emb_path)
         phrase_emb = np.load(phrase_emb_path)['arr_0']
         if mode == 'E':
-            assert phrase_emb.shape[0] == tfidf_vec.shape[0]
+            assert phrase_emb.shape[0] == tfidf_vec.shape[0], '{} vs {}'.format(
+                phrase_emb.shape, tfidf_vec.shape)
 
         # Load question tfidf vectors [N X V]
         que_tfidf_paths = [
@@ -142,7 +144,15 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             phrase_idxs = [0]
             base_idx = 0
             for neg_idx in range(metadata['num_eval_par'] + 1):
-                base_idx += metadata['num_phrases_{}'.format(neg_idx)]
+                num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
+                # Increase sim index to skip invalid doc
+                if num_phrases == 0:
+                    print('neg idx phrase zero: {}'.format(neg_idx))
+                    print(sim)
+                    sim = [s+1 for s in sim if s >= neg_idx]
+                    print(sim)
+                    exit(1)
+                base_idx += num_phrases
                 phrase_idxs.append(base_idx)
             assert phrase_idxs[-1] == phrase_emb.shape[0]
             
