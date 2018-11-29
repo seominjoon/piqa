@@ -66,7 +66,7 @@ def run_YOP(**kwargs):
 
 
 ##### For (TF-IDF)=Y, (Model)=O, (P/E)=E #####
-def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
+def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
             squad_path, large_rand_path, large_tfidf_path, s_question_path,
             context_emb_dir, question_emb_dir, doc_tfidf_dir, que_tfidf_dir,
             pred_path, **kwargs):
@@ -95,13 +95,15 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type,
         (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
          if nsml else '')
     )
-    merge_cmd = "python tfidf_merge.py {} {} {} {} {} {}{}".format(
+    merge_cmd = ("python tfidf_merge.py {} {} {} {} {} {}" +
+                 " --tfidf-weight {}{}").format(
         squad_path,
         context_emb_dir,
         doc_tfidf_dir,
         question_emb_dir,
         que_tfidf_dir,
         pred_path,
+        tfidf_weight,
         ' --draft' if not nsml else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
@@ -163,7 +165,7 @@ if __name__ == '__main__':
 
     # Change arguments for NSML 
     if args.nsml:
-        nsml_data_home = '../data/squad_piqa_181129/train'
+        nsml_data_home = '../data/squad_piqa_181128/train'
         args.load_dir = 'piqateam/minjoon_squad_2/34'
         args.iteration = '35501'
         args.context_emb_dir = './context_emb'
