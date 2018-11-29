@@ -74,6 +74,7 @@ def train(args):
     dev_loader = out['dev_loader']
 
     model = Model(**args.__dict__).to(device)
+    print('Number of parameters:', sum(p.numel() for p in model.parameters()))
     model.init(processed_metadata)
 
     loss_model = Loss(**args.__dict__).to(device)
