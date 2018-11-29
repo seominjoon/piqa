@@ -165,7 +165,8 @@ if __name__ == '__main__':
 
     # Change arguments for NSML 
     if args.nsml:
-        nsml_data_home = '../data/squad_piqa_181128/train'
+        from nsml import DATASET_PATH
+        nsml_data_home = os.path.join(DATASET_PATH, 'train')
         args.load_dir = 'piqateam/minjoon_squad_2/34'
         args.iteration = '35501'
         args.context_emb_dir = './context_emb'
