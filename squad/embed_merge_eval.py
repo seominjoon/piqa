@@ -106,7 +106,7 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         pred_path,
         tfidf_mode,
         tfidf_weight,
-        ' --draft' if not nsml else ''
+        ' --draft' if draft else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
@@ -172,6 +172,8 @@ if __name__ == '__main__':
     if args.draft:
         args.load_dir = '/tmp/piqa/squad/save'
         args.iteration = '1'
+        args.context_emb_dir = '/tmp/piqa/squad/context_emb'
+        args.question_emb_dir = '/tmp/piqa/squad/question_emb'
 
     if args.nsml:
         from nsml import DATASET_PATH
