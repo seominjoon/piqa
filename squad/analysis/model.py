@@ -25,7 +25,7 @@ class Model(dev.Model):
         outs = [[] for _ in range(eval_context_word_idxs.size(0))]
         for i in range(eval_context_word_idxs.size(1)):
             # Should not pass 'eval_context_char_idxs' => causes infinite loop
-            out = super(Mode, self).get_context(
+            out = super(Model, self).get_context(
                 eval_context_char_idxs[:,i,:,:].contiguous(),
                 eval_context_glove_idxs[:,i,:].contiguous(),
                 eval_context_word_idxs[:,i,:].contiguous(),

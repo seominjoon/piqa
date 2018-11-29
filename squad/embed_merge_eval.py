@@ -149,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_eval_par', type=int, default=0)
     parser.add_argument('--large_type', type=str, default='rand',
                         help='rand|tfidf')
-    parser.add_argument('--tfidf_weight', type=float, default=1e+1,
+    parser.add_argument('--tfidf_weight', type=float, default=1e+0,
                         help='tfidf concat weighting')
 
     # Dirs

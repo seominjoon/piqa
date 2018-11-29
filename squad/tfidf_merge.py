@@ -174,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
     parser.add_argument('--mode', type=str, default='E', help='E|P')
-    parser.add_argument('--tfidf-weight', type=float, default=1e+1,
+    parser.add_argument('--tfidf-weight', type=float, default=1e+0,
                         help='TF-IDF vector weight')
     parser.add_argument('--draft', default=False, action='store_true',
                         help='Draft version')

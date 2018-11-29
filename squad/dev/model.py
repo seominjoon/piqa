@@ -435,7 +435,11 @@ class Model(baseline.Model):
                         sparse_list.append(sparse)
                         idx_list.append(idx)
 
-            dense = torch.stack(vec_list, 0)
+            # In case vec_list is empty (it happens when np > 0)
+            dense = None
+            if len(vec_list) > 0:
+                dense = torch.stack(vec_list, 0)
+
             if xs1 is None:
                 sparse = None
             else:

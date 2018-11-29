@@ -27,8 +27,9 @@ class Processor(dev.Processor):
         all_phrases = []
         all_out = None
         for c_idx, context_output in enumerate(context_outputs):
-            pos_tuple, dense, sparse_ = context_output
-            out = dense.cpu().numpy()
+            pos_tuple, dense, sparse_, fsp = context_output
+            if dense is not None:
+                out = dense.cpu().numpy()
 
             # Negative contexts
             if c_idx < len(context_outputs) - 1:
@@ -46,7 +47,7 @@ class Processor(dev.Processor):
             )
 
             # Sparse
-            if self._emb_type == 'sparse' or sparse_ is not None:
+            if (self._emb_type == 'sparse' or sparse_ is not None) and dense is not None:
                 out = csr_matrix(out)
                 if sparse_ is not None:
                     idx, val, max_ = sparse_
@@ -54,6 +55,12 @@ class Processor(dev.Processor):
                         idx.cpu().numpy(), val.cpu().numpy(), max_
                     )
                     out = hstack([out, sparse_tensor.scipy()])
+
+            # Fsp? (not used)
+            if fsp is None:
+                probs = None
+            else:
+                probs = [round(a, 4) for a in fsp.tolist()]
 
             # For metadata
             metadata['context_{}'.format(c_idx)] = context
@@ -66,9 +73,10 @@ class Processor(dev.Processor):
                 )
 
 
-            all_phrases += phrases
-            all_out = out if all_out is None else np.append(all_out, out, 
-                                                            axis=0)
+            if dense is not None:
+                all_phrases += phrases
+                all_out = out if all_out is None else np.append(all_out, out, 
+                                                                axis=0)
         metadata['num_eval_par'] = c_idx
 
         return example['cid'], all_phrases, all_out, metadata
