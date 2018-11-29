@@ -8,6 +8,7 @@ Usage:
 import subprocess
 import argparse
 import os
+import time, datetime
 
 from pprint import pprint
 
@@ -17,7 +18,8 @@ def run_commands(cmds):
         print('Command #{}\n{}'.format(cmd_idx, cmd))
         status = subprocess.call(cmd.split(' '))
         if status != 0:
-            exit(status)
+            print('Failure with exit code: {}'.format(status))
+            break
 
 
 ##### For (TF-IDF)=N, (Model)=O, (P/E)=E #####
@@ -27,7 +29,8 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
     
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
-                   " --context_emb_dir {} --max_eval_par {}{}").format(
+                   " --context_emb_dir {} --max_eval_par {}" +
+                   " --filter_th 0.8{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
@@ -73,7 +76,7 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
                    " --context_emb_dir {} --max_eval_par {}" +
-                   " --metadata{}").format(
+                   " --metadata --filter_th 0.8{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
@@ -106,7 +109,7 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         pred_path,
         tfidf_mode,
         tfidf_weight,
-        ' --draft' if not nsml else ''
+        ' --draft' if draft else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
@@ -148,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_eval_par', type=int, default=0)
     parser.add_argument('--large_type', type=str, default='rand',
                         help='rand|tfidf')
-    parser.add_argument('--tfidf_weight', type=float, default=1e+1,
+    parser.add_argument('--tfidf_weight', type=float, default=1e+0,
                         help='tfidf concat weighting')
 
     # Dirs
@@ -172,6 +175,8 @@ if __name__ == '__main__':
     if args.draft:
         args.load_dir = '/tmp/piqa/squad/save'
         args.iteration = '1'
+        args.context_emb_dir = '/tmp/piqa/squad/context_emb'
+        args.question_emb_dir = '/tmp/piqa/squad/question_emb'
 
     if args.nsml:
         from nsml import DATASET_PATH
@@ -201,6 +206,7 @@ if __name__ == '__main__':
             assert os.path.exists(val), '{} does not exist'.format(val)
 
     # Get commands based on the mode
+    start = time.time()
     if args.mode == 'NOE':
         cmds = run_NOE(**args.__dict__)
     elif args.mode == 'YOP':
@@ -211,3 +217,4 @@ if __name__ == '__main__':
         raise NotImplementedError('Not supported mode: {}'.format(args.mode))
 
     run_commands(cmds)
+    print('Time: {}'.format(str(datetime.timedelta(seconds=time.time()-start))))

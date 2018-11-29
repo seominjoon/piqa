@@ -48,6 +48,11 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         tfidf_vecs = []
         for neg_idx in range(metadata['num_eval_par']):
             ndoc_title = metadata['context_src_{}'.format(neg_idx)]
+            num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
+            if num_phrases == 0:
+                print('gotcha!', metadata['context_{}'])
+                continue
+
             assert ndoc_title in neg_doc_mat[0]
             neg_doc_idx = neg_doc_mat[0][ndoc_title]
             neg_vec = neg_doc_mat[2][neg_doc_idx]
@@ -72,7 +77,8 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         phrase_emb_path = os.path.join(context_emb_dir, cid + '.npz')
         assert os.path.exists(phrase_emb_path)
         phrase_emb = np.load(phrase_emb_path)['arr_0']
-        assert phrase_emb.shape[0] == tfidf_vec.shape[0]
+        if mode == 'E':
+            assert phrase_emb.shape[0] == tfidf_vec.shape[0]
 
         # Load question tfidf vectors [N X V]
         que_tfidf_paths = [
@@ -127,8 +133,30 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         # Pipeline mode (filtering)
         elif mode == 'P':
             
-            # Find argmax of document first
-            sim1 = que_tfidf_vec * tfidf_vec
+            import time
+            start = time.time()
+            # print(time.time() - start)
+
+            # Find argmax of document first, and find phrase idx
+            sim = np.argmax((que_tfidf_vec * tfidf_vec.T).toarray(), axis=1)
+            phrase_idxs = [0]
+            base_idx = 0
+            for neg_idx in range(metadata['num_eval_par'] + 1):
+                base_idx += metadata['num_phrases_{}'.format(neg_idx)]
+                phrase_idxs.append(base_idx)
+            assert phrase_idxs[-1] == phrase_emb.shape[0]
+            
+            # Retrieval based on the phrase idxs
+            for q_idx, q_emb in enumerate(q_list):
+                print(phrase_emb.shape)
+                masked_phrase_emb = phrase_emb[:]
+                range_s = phrase_idxs[sim[q_idx]]
+                range_e = phrase_idxs[sim[q_idx]+1]
+                print(masked_phrase_emb[range_s-1:range_e+2])
+                masked_phrase_emb[:range_s] = 0.0
+                masked_phrase_emb[range_e:] = 0.0
+                # do the multiplication, range check, and find json
+                exit(1)
 
         else:
             raise NotImplementedError()
@@ -151,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
     parser.add_argument('--mode', type=str, default='E', help='E|P')
-    parser.add_argument('--tfidf-weight', type=float, default=1e+1,
+    parser.add_argument('--tfidf-weight', type=float, default=1e+0,
                         help='TF-IDF vector weight')
     parser.add_argument('--draft', default=False, action='store_true',
                         help='Draft version')

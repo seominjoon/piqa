@@ -17,62 +17,6 @@ class Processor(dev.Processor):
         self.max_eval_par = kwargs['max_eval_par']
         super(Processor, self).__init__(**kwargs)
 
-    # Modified to include noise paragraphs
-    def postprocess_context(self, example, context_outputs):
-        if self.max_eval_par == 0:
-            context_outputs = [context_outputs]
-        metadata = {}
-
-        # Iterate (eval_len + 1) => last one is a positive one
-        all_phrases = []
-        all_out = None
-        for c_idx, context_output in enumerate(context_outputs):
-            pos_tuple, dense, sparse_ = context_output
-            out = dense.cpu().numpy()
-
-            # Negative contexts
-            if c_idx < len(context_outputs) - 1:
-                context = example['eval_context'][c_idx]
-                context_spans = example['eval_context_spans'][c_idx]
-                context_src = example['eval_context_src'][c_idx]
-            # Positive context
-            else:
-                context = example['context']
-                context_spans = example['context_spans']
-                context_src = example['cid']
-            phrases = tuple(
-                get_pred(context, context_spans, yp1, yp2) 
-                for yp1, yp2 in pos_tuple
-            )
-
-            # Sparse
-            if self._emb_type == 'sparse' or sparse_ is not None:
-                out = csr_matrix(out)
-                if sparse_ is not None:
-                    idx, val, max_ = sparse_
-                    sparse_tensor = SparseTensor(
-                        idx.cpu().numpy(), val.cpu().numpy(), max_
-                    )
-                    out = hstack([out, sparse_tensor.scipy()])
-
-            # For metadata
-            metadata['context_{}'.format(c_idx)] = context
-            metadata['context_src_{}'.format(c_idx)] = context_src
-            metadata['num_phrases_{}'.format(c_idx)] = len(phrases)
-            if c_idx == len(context_outputs) - 1:
-                metadata['answer_spans'] = tuple(
-                    (context_spans[yp1][0], context_spans[yp2][1]) 
-                    for yp1, yp2 in pos_tuple
-                )
-
-
-            all_phrases += phrases
-            all_out = out if all_out is None else np.append(all_out, out, 
-                                                            axis=0)
-        metadata['num_eval_par'] = c_idx
-
-        return example['cid'], all_phrases, all_out, metadata
-
     # Override to process 'eval_context'
     def preprocess(self, example):
         prepro_example = {'idx': example['idx']}
@@ -114,6 +58,13 @@ class Processor(dev.Processor):
                     if span[0] <= answer_end:
                         answer_word_end = word_idx + 1
                 answer_word_ends.append(answer_word_end)
+
+            # no answer capa
+            if len(answer_word_starts) == 0:
+                assert len(answer_word_ends) == 0
+                answer_word_starts.append(0)
+                answer_word_ends.append(0)
+
             prepro_example['answer_word_starts'] = answer_word_starts
             prepro_example['answer_word_ends'] = answer_word_ends
 
@@ -140,6 +91,71 @@ class Processor(dev.Processor):
         output = dict(tuple(example.items()) + tuple(prepro_example.items()))
 
         return output
+
+    # Modified to include noise paragraphs
+    def postprocess_context(self, example, context_outputs):
+        if self.max_eval_par == 0:
+            context_outputs = [context_outputs]
+        metadata = {}
+
+        # Iterate (eval_len + 1) => last one is a positive one
+        all_phrases = []
+        all_out = None
+        for c_idx, context_output in enumerate(context_outputs):
+            pos_tuple, dense, sparse_, fsp = context_output
+            if dense is not None:
+                out = dense.cpu().numpy()
+
+            # Negative contexts
+            if c_idx < len(context_outputs) - 1:
+                context = example['eval_context'][c_idx]
+                context_spans = example['eval_context_spans'][c_idx]
+                context_src = example['eval_context_src'][c_idx]
+            # Positive context
+            else:
+                context = example['context']
+                context_spans = example['context_spans']
+                context_src = example['cid']
+            phrases = tuple(
+                get_pred(context, context_spans, yp1, yp2) 
+                for yp1, yp2 in pos_tuple
+            )
+
+            # Sparse
+            if (self._emb_type == 'sparse' or sparse_ is not None) and dense is not None:
+                out = csr_matrix(out)
+                if sparse_ is not None:
+                    idx, val, max_ = sparse_
+                    sparse_tensor = SparseTensor(
+                        idx.cpu().numpy(), val.cpu().numpy(), max_
+                    )
+                    out = hstack([out, sparse_tensor.scipy()])
+
+            # Fsp? (not used)
+            if fsp is None or len(fsp) == 0:
+                probs = None
+            else:
+                probs = [round(a, 4) for a in fsp.tolist()]
+
+            # For metadata
+            metadata['context_{}'.format(c_idx)] = context
+            metadata['context_src_{}'.format(c_idx)] = context_src
+            metadata['num_phrases_{}'.format(c_idx)] = len(phrases)
+            if c_idx == len(context_outputs) - 1:
+                metadata['answer_spans'] = tuple(
+                    (context_spans[yp1][0], context_spans[yp2][1]) 
+                    for yp1, yp2 in pos_tuple
+                )
+
+
+            if dense is not None:
+                all_phrases += phrases
+                all_out = out if all_out is None else np.append(all_out, out, 
+                                                                axis=0)
+        metadata['num_eval_par'] = c_idx
+
+        return example['cid'], all_phrases, all_out, metadata
+
 
     # Override to process 'eval_context'
     def collate(self, examples):
