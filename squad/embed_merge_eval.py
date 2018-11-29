@@ -9,6 +9,8 @@ import subprocess
 import argparse
 import os
 
+from pprint import pprint
+
 
 def run_commands(cmds):
     for cmd_idx, cmd in enumerate(cmds):
@@ -21,12 +23,13 @@ def run_commands(cmds):
 ##### For (TF-IDF)=N, (Model)=O, (P/E)=E #####
 def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
             squad_path, large_rand_path, large_tfidf_path, s_question_path,
-            context_emb_dir, question_emb_dir, pred_path, **kwargs):
+            context_emb_dir, question_emb_dir, pred_path, draft, **kwargs):
     
-    c_embed_cmd = ("python main.py analysis --mode embed_context {}" +
+    c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
                    " --context_emb_dir {} --max_eval_par {}{}").format(
-        '--cuda' if nsml else '--draft',
+        ' --cuda' if nsml else '',
+        ' --draft' if draft else '',
         load_dir,
         iteration,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
@@ -35,10 +38,11 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
         (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
          if nsml else '')
     )
-    q_embed_cmd = ("python main.py dev --mode embed_question {}" +
+    q_embed_cmd = ("python main.py dev --mode embed_question{}{}" +
                    " --load_dir {} --iteration {} --test_path {}"
                    " --question_emb_dir {}{}").format(
-        '--cuda' if nsml else '--draft',
+        ' --cuda' if nsml else '',
+        ' --draft' if draft else '',
         load_dir,
         iteration,
         s_question_path,
@@ -69,13 +73,14 @@ def run_YOP(**kwargs):
 def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
             squad_path, large_rand_path, large_tfidf_path, s_question_path,
             context_emb_dir, question_emb_dir, doc_tfidf_dir, que_tfidf_dir,
-            pred_path, **kwargs):
+            pred_path, draft, **kwargs):
 
-    c_embed_cmd = ("python main.py analysis --mode embed_context {}" +
+    c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
                    " --context_emb_dir {} --max_eval_par {}" +
                    " --metadata{}").format(
-        '--cuda' if nsml else '--draft',
+        ' --cuda' if nsml else '',
+        ' --draft' if draft else '',
         load_dir,
         iteration,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
@@ -84,10 +89,11 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
          if nsml else '')
     )
-    q_embed_cmd = ("python main.py dev --mode embed_question {}" +
+    q_embed_cmd = ("python main.py dev --mode embed_question{}{}" +
                    " --load_dir {} --iteration {} --test_path {}"
                    " --question_emb_dir {}{}").format(
-        '--cuda' if nsml else '--draft',
+        ' --cuda' if nsml else '',
+        ' --draft' if draft else '',
         load_dir,
         iteration,
         s_question_path,
@@ -116,8 +122,8 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
 
 # Predefined paths (for locals)
 data_home = os.path.join(os.path.expanduser('~'), 'data/squad')
-CONTEXT_DIR = '/tmp/piqa/squad/context_emb/'
-QUESTION_DIR = '/tmp/piqa/squad/question_emb/'
+CONTEXT_DIR = os.path.join(data_home, 'context_emb')
+QUESTION_DIR = os.path.join(data_home, 'question_emb')
 DOC_TFIDF_DIR = os.path.join(data_home, 'doc_tfidf')
 QUE_TFIDF_DIR = os.path.join(data_home, 'que_tfidf')
 SQUAD_PATH = os.path.join(data_home, 'dev-v1.1.json')
@@ -134,8 +140,11 @@ if __name__ == '__main__':
     # Model
     parser.add_argument('--nsml', default=False, action='store_true',
                         help='Use nsml (default=local)')
-    parser.add_argument('--load_dir', type=str, default='/tmp/piqa/squad/save')
-    parser.add_argument('--iteration', type=str, default='1')
+    parser.add_argument('--draft', default=False, action='store_true',
+                        help='Use draft (default=local)')
+    parser.add_argument('--load_dir', type=str, 
+                        default='piqateam_minjoon_squad_2_34')
+    parser.add_argument('--iteration', type=str, default='35501')
 
     # Analysis (large setting)
     parser.add_argument('--mode', type=str, default='NOE',
@@ -159,18 +168,22 @@ if __name__ == '__main__':
     parser.add_argument('--pred_path', type=str, default='./test_pred.json')
     parser.add_argument('--large_rand_path', type=str, default=LARGE_RAND_PATH)
     parser.add_argument('--large_tfidf_path', type=str, default=LARGE_TFIDF_PATH)
-        
+ 
     args = parser.parse_args()
-    print(args.__dict__)
 
-    # Change arguments for NSML 
+    # Change arguments for draft / NSML
+    assert not (args.draft and args.nsml), 'NSML+Draft not supported'
+    if args.draft:
+        args.load_dir = '/tmp/piqa/squad/save'
+        args.iteration = '1'
+
     if args.nsml:
         from nsml import DATASET_PATH
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
         args.load_dir = 'piqateam/minjoon_squad_2/34'
         args.iteration = '35501'
-        args.context_emb_dir = './context_emb'
-        args.question_emb_dir = './question_emb'
+        args.context_emb_dir = os.path.join(nsml_data_home, 'context_emb')
+        args.question_emb_dir = os.path.join(nsml_data_home, 'question_emb')
         args.doc_tfidf_dir = os.path.join(nsml_data_home, 'doc_tfidf')
         args.que_tfidf_dir = os.path.join(nsml_data_home, 'que_tfidf')
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
@@ -182,6 +195,8 @@ if __name__ == '__main__':
             'dev-v1.1-large-rand-par100.json')
         args.large_tfidf_path = os.path.join(nsml_data_home,
             'dev-v1.1-large-tfidf-doc30-par100.json')
+
+    pprint(args.__dict__)
 
     # Path check
     for key, val in args.__dict__.items():

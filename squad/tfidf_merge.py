@@ -56,7 +56,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             )
             tfidf_vecs.append(neg_vec)
 
-        # Load pos doc tfidf vector [1 X V]
+        # Load pos doc tfidf vector [1 X V], and concat as [P X V]
         doc_title = '_'.join(cid.split('_')[:-1])
         assert doc_title in pos_doc_mat
         pos_vec = pos_doc_mat[doc_title]
@@ -134,6 +134,7 @@ if __name__ == '__main__':
     parser.add_argument('question_emb_dir', help='Question embedding directory')
     parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
+    parser.add_argument('--mode', type=str, default='E', help='E|P')
     parser.add_argument('--tfidf-weight', type=float, default=1e+1,
                         help='TF-IDF vector weight')
     parser.add_argument('--draft', default=False, action='store_true',
