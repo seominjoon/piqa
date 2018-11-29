@@ -135,39 +135,30 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         # Pipeline mode (filtering)
         elif mode == 'P':
             
-            import time
-            start = time.time()
-            # print(time.time() - start)
-
             # Find argmax of document first, and find phrase idx
-            sim = np.argmax((que_tfidf_vec * tfidf_vec.T).toarray(), axis=1)
+            sim1 = np.argmax((que_tfidf_vec * tfidf_vec.T).toarray(), axis=1)
             phrase_idxs = [0]
             base_idx = 0
             for neg_idx in range(metadata['num_eval_par'] + 1):
                 num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
-                # Increase sim index to skip invalid doc
+                # Increase sim1 index to skip invalid doc
                 if num_phrases == 0:
-                    print('neg idx phrase zero: {}'.format(neg_idx))
-                    print(sim)
-                    sim = [s+1 for s in sim if s >= neg_idx]
-                    print(sim)
-                    exit(1)
+                    sim1 = [s+1 for s in sim1 if s >= neg_idx]
                 base_idx += num_phrases
                 phrase_idxs.append(base_idx)
             assert phrase_idxs[-1] == phrase_emb.shape[0]
             
             # Retrieval based on the phrase idxs
-            for q_idx, q_emb in enumerate(q_list):
-                print(phrase_emb.shape)
+            for q_idx, (q_id, q_emb) in enumerate(zip(q_list, que_emb)):
                 masked_phrase_emb = phrase_emb[:]
-                range_s = phrase_idxs[sim[q_idx]]
-                range_e = phrase_idxs[sim[q_idx]+1]
-                print(masked_phrase_emb[range_s-1:range_e+2])
-                masked_phrase_emb[:range_s] = 0.0
-                masked_phrase_emb[range_e:] = 0.0
-                # do the multiplication, range check, and find json
-                exit(1)
-
+                range_s = phrase_idxs[sim1[q_idx]]
+                range_e = phrase_idxs[sim1[q_idx]+1]
+                sim2 = np.argmax(
+                    q_emb.dot(masked_phrase_emb[range_s:range_e,:].T)
+                )
+                sim2 += range_s
+                assert sim2 >= range_s and sim2 < range_e
+                predictions[q_id] = phrases[sim2]
         else:
             raise NotImplementedError()
 
