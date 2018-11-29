@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 # Append document tfidf vector to each paragraphs, then merge
 def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
-                       question_emb_dir, que_tfidf_dir, **kwargs):
+                       question_emb_dir, que_tfidf_dir, mode, **kwargs):
     num_questions = sum([len(q) for q in c2q.values()])
     print('Number of contexts to process: {}'.format(len(c2q)))
     print('Number of questions to process: {}'.format(num_questions))
@@ -51,18 +51,20 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             assert ndoc_title in neg_doc_mat[0]
             neg_doc_idx = neg_doc_mat[0][ndoc_title]
             neg_vec = neg_doc_mat[2][neg_doc_idx]
-            neg_vec = vstack(
-                [neg_vec] * metadata['num_phrases_{}'.format(neg_idx)]
-            )
+            if mode == 'E':
+                neg_vec = vstack(
+                    [neg_vec] * metadata['num_phrases_{}'.format(neg_idx)]
+                )
             tfidf_vecs.append(neg_vec)
 
-        # Load pos doc tfidf vector [1 X V]
+        # Load pos doc tfidf vector [1 X V], and stack as [N X V]
         doc_title = '_'.join(cid.split('_')[:-1])
         assert doc_title in pos_doc_mat
         pos_vec = pos_doc_mat[doc_title]
-        pos_vec = vstack(
-            [pos_vec] * metadata['num_phrases_{}'.format(len(tfidf_vecs))]
-        )
+        if mode == 'E':
+            pos_vec = vstack(
+                [pos_vec] * metadata['num_phrases_{}'.format(len(tfidf_vecs))]
+            )
         tfidf_vecs.append(pos_vec)
         tfidf_vec = vstack(tfidf_vecs)
 
@@ -72,11 +74,6 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         phrase_emb = np.load(phrase_emb_path)['arr_0']
         assert phrase_emb.shape[0] == tfidf_vec.shape[0]
 
-        # Concatenate doc_tfidf_emb and phrase_emb
-        tfidf_vec = tfidf_vec * tfidf_weight         
-        phrase_emb = csr_matrix(phrase_emb)
-        phrase_concat_emb = hstack([tfidf_vec, phrase_emb])
-
         # Load question tfidf vectors [N X V]
         que_tfidf_paths = [
             os.path.join(que_tfidf_dir, q_id + '.tfidf.npz')
@@ -84,7 +81,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         ]
         for path in que_tfidf_paths:
             assert os.path.exists(path)
-        que_tfidf_emb = vstack(
+        que_tfidf_vec = vstack(
             [load_npz(que_tfidf_path) for que_tfidf_path in que_tfidf_paths]
         )
 
@@ -100,27 +97,46 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         )
         que_emb = np.squeeze(que_emb, axis=1)
 
-        # Concatenate que_tfidf_emb and que_emb
-        que_tfidf_emb = que_tfidf_emb * tfidf_weight         
-        que_emb = csr_matrix(que_emb)
-        que_concat_emb = hstack([que_tfidf_emb, que_emb])
-
         # Load json file to get raw texts
         c_json_path = os.path.join(context_emb_dir, cid + '.json')
         assert os.path.exists(c_json_path)
         with open(c_json_path, 'r') as fp:
             phrases = json.load(fp)
-            assert len(phrases) == phrase_concat_emb.shape[0]
+            assert len(phrases) == phrase_emb.shape[0]
 
-        # Find answers
-        sim = que_concat_emb * phrase_concat_emb.T
-        phrase_idxs = np.argmax(sim.toarray(), axis=1)
-        assert len(phrase_idxs) == len(q_list)
-        for (phrase_idx, q_id) in zip(phrase_idxs, q_list):
-            predictions[q_id] = phrases[phrase_idx]
+        # End-2-end mode (concatenation)
+        if mode == 'E':
+
+            # Concatenate doc_tfidf_vec and phrase_emb
+            tfidf_vec = tfidf_vec * tfidf_weight         
+            phrase_emb = csr_matrix(phrase_emb)
+            phrase_concat_emb = hstack([tfidf_vec, phrase_emb])
+
+            # Concatenate que_tfidf_vec and que_emb
+            que_tfidf_vec = que_tfidf_vec * tfidf_weight         
+            que_emb = csr_matrix(que_emb)
+            que_concat_emb = hstack([que_tfidf_vec, que_emb])
+
+            # Find answers
+            sim = que_concat_emb * phrase_concat_emb.T
+            phrase_idxs = np.argmax(sim.toarray(), axis=1)
+            assert len(phrase_idxs) == len(q_list)
+            for (phrase_idx, q_id) in zip(phrase_idxs, q_list):
+                predictions[q_id] = phrases[phrase_idx]
+
+        # Pipeline mode (filtering)
+        elif mode == 'P':
+            
+            # Find argmax of document first
+            sim1 = que_tfidf_vec * tfidf_vec
+
+        else:
+            raise NotImplementedError()
 
         if kwargs['draft']:
-            break
+            for q_id, pred in predictions.items():
+                print(q_id, pred)
+                exit(1)
          
     return predictions
 
@@ -134,6 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('question_emb_dir', help='Question embedding directory')
     parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
+    parser.add_argument('--mode', type=str, default='E', help='E|P')
     parser.add_argument('--tfidf-weight', type=float, default=1e+1,
                         help='TF-IDF vector weight')
     parser.add_argument('--draft', default=False, action='store_true',

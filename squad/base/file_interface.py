@@ -116,8 +116,11 @@ class FileInterface(object):
 
         if metadata is not None:
             metadata_path = os.path.join(self._context_emb_dir, '%s.metadata' % id_)
-            with open(metadata_path, 'w') as fp:
-                json.dump(metadata, fp)
+            if os.path.exists(metadata_path):
+                print('Skipping %s; already exists' % metadata_path)
+            else:
+                with open(metadata_path, 'w') as fp:
+                    json.dump(metadata, fp)
 
     def context_load(self, metadata=False, emb_type='dense', shuffle=True):
         paths = os.listdir(self._context_emb_dir)
