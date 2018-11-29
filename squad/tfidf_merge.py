@@ -48,6 +48,11 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         tfidf_vecs = []
         for neg_idx in range(metadata['num_eval_par']):
             ndoc_title = metadata['context_src_{}'.format(neg_idx)]
+            num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
+            if num_phrases == 0:
+                print('gotcha!', metadata['context_{}'])
+                continue
+
             assert ndoc_title in neg_doc_mat[0]
             neg_doc_idx = neg_doc_mat[0][ndoc_title]
             neg_vec = neg_doc_mat[2][neg_doc_idx]

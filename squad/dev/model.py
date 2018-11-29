@@ -446,7 +446,7 @@ class Model(baseline.Model):
                 sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
                 idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
                 sparse = [idx_cat, sparse_cat, 800004]
-            if self.phrase_filter:
+            if self.phrase_filter and len(fsp_list) > 0:
                 fsp_stack = torch.stack(fsp_list, 0)
             else:
                 fsp_stack = None
