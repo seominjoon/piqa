@@ -178,8 +178,8 @@ if __name__ == '__main__':
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
         args.load_dir = 'piqateam/minjoon_squad_2/34'
         args.iteration = '35501'
-        args.context_emb_dir = os.path.join(nsml_data_home, 'context_emb')
-        args.question_emb_dir = os.path.join(nsml_data_home, 'question_emb')
+        args.context_emb_dir = './context_emb'
+        args.question_emb_dir = './question_emb'
         args.doc_tfidf_dir = os.path.join(nsml_data_home, 'doc_tfidf')
         args.que_tfidf_dir = os.path.join(nsml_data_home, 'que_tfidf')
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
