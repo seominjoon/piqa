@@ -435,14 +435,18 @@ class Model(baseline.Model):
                         sparse_list.append(sparse)
                         idx_list.append(idx)
 
-            dense = torch.stack(vec_list, 0)
+            # In case vec_list is empty (it happens when np > 0)
+            dense = None
+            if len(vec_list) > 0:
+                dense = torch.stack(vec_list, 0)
+
             if xs1 is None:
                 sparse = None
             else:
                 sparse_cat = None if xs1 is None else torch.stack(sparse_list, 0)
                 idx_cat = None if xs1 is None else torch.stack(idx_list, 0)
                 sparse = [idx_cat, sparse_cat, 800004]
-            if self.phrase_filter:
+            if self.phrase_filter and len(fsp_list) > 0:
                 fsp_stack = torch.stack(fsp_list, 0)
             else:
                 fsp_stack = None
