@@ -64,16 +64,11 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
     return [c_embed_cmd, q_embed_cmd, merge_cmd, eval_cmd]
 
 
-##### For (TF-IDF)=Y, (Model)=O, (P/E)=P #####
-def run_YOP(**kwargs):
-    raise NotImplementedError()
-
-
-##### For (TF-IDF)=Y, (Model)=O, (P/E)=E #####
-def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
-            squad_path, large_rand_path, large_tfidf_path, s_question_path,
-            context_emb_dir, question_emb_dir, doc_tfidf_dir, que_tfidf_dir,
-            pred_path, draft, **kwargs):
+##### For (TF-IDF)=Y, (Model)=O, (TF-IDF Mode)=E/P #####
+def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
+           squad_path, large_rand_path, large_tfidf_path, s_question_path,
+           context_emb_dir, question_emb_dir, doc_tfidf_dir, que_tfidf_dir,
+           pred_path, draft, tfidf_mode, **kwargs):
 
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
@@ -102,13 +97,14 @@ def run_YOE(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
          if nsml or not draft else '')
     )
     merge_cmd = ("python tfidf_merge.py {} {} {} {} {} {}" +
-                 " --mode E --tfidf-weight {}{}").format(
+                 " --mode {} --tfidf-weight {}{}").format(
         squad_path,
         context_emb_dir,
         doc_tfidf_dir,
         question_emb_dir,
         que_tfidf_dir,
         pred_path,
+        tfidf_mode,
         tfidf_weight,
         ' --draft' if not nsml else ''
     )
@@ -208,9 +204,9 @@ if __name__ == '__main__':
     if args.mode == 'NOE':
         cmds = run_NOE(**args.__dict__)
     elif args.mode == 'YOP':
-        cmds = run_YOP(**args.__dict__)
+        cmds = run_YO(tfidf_mode='P', **args.__dict__)
     elif args.mode == 'YOE':
-        cmds = run_YOE(**args.__dict__)
+        cmds = run_YO(tfidf_mode='E', **args.__dict__)
     else:
         raise NotImplementedError('Not supported mode: {}'.format(args.mode))
 
