@@ -27,7 +27,8 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type,
     
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
-                   " --context_emb_dir {} --max_eval_par {}{}").format(
+                   " --context_emb_dir {} --max_eval_par {}" +
+                   " --filter_th 0.8{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
@@ -73,7 +74,7 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
                    " --context_emb_dir {} --max_eval_par {}" +
-                   " --metadata{}").format(
+                   " --metadata --filter_th 0.8{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,

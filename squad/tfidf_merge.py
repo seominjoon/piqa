@@ -105,9 +105,6 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             phrases = json.load(fp)
             assert len(phrases) == phrase_emb.shape[0]
 
-        print(type(tfidf_vec), tfidf_vec.shape)
-        print(type(que_tfidf_vec), que_tfidf_vec.shape)
-
         # End-2-end mode (concatenation)
         if mode == 'E':
 
