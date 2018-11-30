@@ -143,6 +143,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
                 num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
                 # Increase sim1 index to skip invalid doc
                 if num_phrases == 0:
+                    # TODO: debug this
                     sim1 = [s+1 for s in sim1 if s >= neg_idx]
                 base_idx += num_phrases
                 phrase_idxs.append(base_idx)
