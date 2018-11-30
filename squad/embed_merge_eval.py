@@ -56,7 +56,7 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
         (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
          if nsml or not draft else '')
     )
-    merge_cmd = "python merge.py {} {} {} {}".format(
+    merge_cmd = "python merge.py {} {} {} {} --q_mat".format(
         squad_path,
         context_emb_dir,
         question_emb_dir,
