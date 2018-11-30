@@ -116,7 +116,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         if mode == 'E':
 
             # Concatenate doc_tfidf_vec and phrase_emb
-            tfidf_vec = tfidf_vec * tfidf_weight         
+            tfidf_vec = tfidf_vec    
             phrase_emb = csr_matrix(phrase_emb)
             phrase_concat_emb = hstack([tfidf_vec, phrase_emb])
 
