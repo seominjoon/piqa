@@ -216,7 +216,6 @@ if __name__ == '__main__':
                 for split_idx, split in enumerate(_split_doc(text)):
                     if split_idx == 0: # skip titles
                         curr_title = split
-                        # TODO debugging (split title != curr_title)
                         continue
 
                     # For SQuAD doc, we already added it.
@@ -228,7 +227,7 @@ if __name__ == '__main__':
                     else:
                         if len(split) >= 500:
                             eval_context.append(split)
-                            eval_context_src.append(curr_title)
+                            eval_context_src.append(split_title)
                             if not args.par_open:
                                 open_context.update([split])
 
