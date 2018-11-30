@@ -25,7 +25,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
     tfidf_weight = kwargs['tfidf_weight']
 
     # Load tfidf mats
-    neg_doc_mat_path = os.path.join(doc_tfidf_dir, 'neg_doc_mat.pkl')
+    neg_doc_mat_path = os.path.join(doc_tfidf_dir, 'neg_doc_mat_tf.pkl')
     pos_doc_mat_path = os.path.join(doc_tfidf_dir, 'pos_doc_mat.pkl')
     assert os.path.exists(neg_doc_mat_path) and os.path.exists(pos_doc_mat_path)
     with open(neg_doc_mat_path, 'rb') as f:
@@ -54,7 +54,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
                 print('No phrase:', metadata['context_{}'.format(neg_idx)], cid)
                 continue
 
-            assert ndoc_title in neg_doc_mat[0]
+            assert ndoc_title in neg_doc_mat[0], ndoc_title
             neg_doc_idx = neg_doc_mat[0][ndoc_title]
             neg_vec = neg_doc_mat[2][neg_doc_idx]
             if mode == 'E':

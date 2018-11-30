@@ -63,7 +63,7 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
         doc_tfidf_path = os.path.join(context_tfidf_dir + 'neg_doc_mat_tf.pkl')
         with open(doc_tfidf_path, 'wb') as f:
             pickle.dump(
-                [title2idx, idx2title, doc_tfidf_mat], 
+                [title2idx, idx2title, doc_tfidf_mat],
                 f, protocol=pickle.HIGHEST_PROTOCOL
             )
         print('Negative Document TF-IDF saved as {}'.format(doc_tfidf_path))
