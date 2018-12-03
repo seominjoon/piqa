@@ -76,7 +76,10 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         # Load phrase vectors (supports dense vectors only) [P X D]
         phrase_emb_path = os.path.join(context_emb_dir, cid + '.npz')
         assert os.path.exists(phrase_emb_path)
-        phrase_emb = np.load(phrase_emb_path)['arr_0']
+        if not kwargs['sparse']:
+            phrase_emb = np.load(phrase_emb_path)['arr_0']
+        else:
+            phrase_emb = load_npz(phrase_emb_path)
         if mode == 'E':
             assert phrase_emb.shape[0] == tfidf_vec.shape[0], '{} vs {}'.format(
                 phrase_emb.shape, tfidf_vec.shape)
@@ -99,9 +102,15 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         ]
         for path in que_emb_paths:
             assert os.path.exists(path)
-        que_emb = np.stack(
-            [np.load(que_emb_path)['arr_0'] for que_emb_path in que_emb_paths],
-        )
+        if not kwargs['sparse']:
+            que_emb = np.stack(
+                [np.load(que_emb_path)['arr_0'] 
+                 for que_emb_path in que_emb_paths],
+            )
+        else:
+            que_emb = np.stack(
+                [load_npz(que_emb_path) for que_emb_path in que_emb_paths]
+            )
         que_emb = np.squeeze(que_emb, axis=1)
 
         # Load json file to get raw texts
@@ -182,6 +191,8 @@ if __name__ == '__main__':
     parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
     parser.add_argument('--mode', type=str, default='E', help='E|P')
+    parser.add_argument('--sparse', default=False, action='store_true',
+                        help='If stored phrase vecs are sparse vec or not')
     parser.add_argument('--tfidf-weight', type=float, default=1e+0,
                         help='TF-IDF vector weight')
     parser.add_argument('--draft', default=False, action='store_true',

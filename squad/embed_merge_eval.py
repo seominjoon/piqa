@@ -56,11 +56,12 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
         ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
         ' --sparse' if sparse else ''
     )
-    merge_cmd = "python merge.py {} {} {} {} --q_mat".format(
+    merge_cmd = "python merge.py {} {} {} {}{}".format(
         squad_path,
         context_emb_dir,
         question_emb_dir,
-        pred_path
+        pred_path,
+        ' --q_mat' if not sparse else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
@@ -181,7 +182,7 @@ if __name__ == '__main__':
  
     args = parser.parse_args()
 
-    # Change arguments for draft / NSML
+    # Change arguments for draft / NSML / sparse
     assert not (args.draft and args.nsml), 'NSML+Draft not supported'
     if args.draft:
         args.load_dir = '/tmp/piqa/squad/save'
@@ -192,8 +193,10 @@ if __name__ == '__main__':
     if args.nsml:
         from nsml import DATASET_PATH
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
-        args.load_dir = 'piqateam/minjoon_squad_2/34'
-        args.iteration = '35501'
+        # args.load_dir = 'piqateam/minjoon_squad_2/34' (baseline)
+        # args.iteration = '35501'
+        args.load_dir = 'piqateam/minjoon_squad_2/36' (baseline)
+        args.iteration = '28501'
         args.context_emb_dir = './context_emb'
         args.question_emb_dir = './question_emb'
         args.doc_tfidf_dir = os.path.join(nsml_data_home, 'doc_tfidf')
