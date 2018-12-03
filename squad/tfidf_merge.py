@@ -107,11 +107,11 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
                 [np.load(que_emb_path)['arr_0'] 
                  for que_emb_path in que_emb_paths],
             )
+            que_emb = np.squeeze(que_emb, axis=1)
         else:
             que_emb = np.stack(
                 [load_npz(que_emb_path) for que_emb_path in que_emb_paths]
             )
-        que_emb = np.squeeze(que_emb, axis=1)
 
         # Load json file to get raw texts
         c_json_path = os.path.join(context_emb_dir, cid + '.json')
