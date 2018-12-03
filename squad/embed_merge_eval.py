@@ -61,7 +61,7 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
         context_emb_dir,
         question_emb_dir,
         pred_path,
-        ' --q_mat' if not sparse else ''
+        ' --q_mat' if not sparse else '',
         ' --sparse' if sparse else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
