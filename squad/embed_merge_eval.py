@@ -130,8 +130,8 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
 
 # Predefined paths (for locals)
 data_home = os.path.join(os.path.expanduser('~'), 'data/squad')
-CONTEXT_DIR = os.path.join(data_home, 'context_emb_tf')
-QUESTION_DIR = os.path.join(data_home, 'question_emb_tf')
+CONTEXT_DIR = os.path.join(data_home, 'context_emb_sp')
+QUESTION_DIR = os.path.join(data_home, 'question_emb_sp')
 DOC_TFIDF_DIR = os.path.join(data_home, 'doc_tfidf')
 QUE_TFIDF_DIR = os.path.join(data_home, 'que_tfidf')
 SQUAD_PATH = os.path.join(data_home, 'dev-v1.1.json')
@@ -151,8 +151,11 @@ if __name__ == '__main__':
     parser.add_argument('--draft', default=False, action='store_true',
                         help='Use draft (default=local)')
     parser.add_argument('--load_dir', type=str, 
-                        default='piqateam_minjoon_squad_2_34')
-    parser.add_argument('--iteration', type=str, default='35501')
+                        # default='piqateam_minjoon_squad_2_34')
+                        default='piqateam_minjoon_squad_2_36')
+    parser.add_argument('--iteration', type=str,
+                        # default='35501')
+                        default='28501')
     parser.add_argument('--batch_size', type=str, default=64)
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='Use sparse model (S) (default=false)')
