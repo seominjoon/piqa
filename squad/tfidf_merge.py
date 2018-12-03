@@ -52,7 +52,6 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
             if num_phrases == 0:
                 print('No phrase:', metadata['context_{}'.format(neg_idx)], cid)
-                continue
 
             assert ndoc_title in neg_doc_mat[0], ndoc_title
             neg_doc_idx = neg_doc_mat[0][ndoc_title]
@@ -141,10 +140,6 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             base_idx = 0
             for neg_idx in range(metadata['num_eval_par'] + 1):
                 num_phrases = metadata['num_phrases_{}'.format(neg_idx)]
-                # Increase sim1 index to skip invalid doc
-                if num_phrases == 0:
-                    # TODO: debug this
-                    sim1 = [s+1 for s in sim1 if s >= neg_idx]
                 base_idx += num_phrases
                 phrase_idxs.append(base_idx)
             assert phrase_idxs[-1] == phrase_emb.shape[0]
@@ -154,6 +149,12 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
                 masked_phrase_emb = phrase_emb[:]
                 range_s = phrase_idxs[sim1[q_idx]]
                 range_e = phrase_idxs[sim1[q_idx]+1]
+                # No match (no phrase found for corresponding doc
+                if range_s == range_e:
+                    predictions[q_id] = ''
+                    print('No match for qid {}'.format(q_id))
+                    continue
+
                 sim2 = np.argmax(
                     q_emb.dot(masked_phrase_emb[range_s:range_e,:].T)
                 )
