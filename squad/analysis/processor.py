@@ -1,4 +1,4 @@
-from scipy.sparse import csr_matrix, hstack
+from scipy.sparse import csr_matrix, hstack, vstack
 import numpy as np
 
 import dev
@@ -130,7 +130,7 @@ class Processor(dev.Processor):
                     sparse_tensor = SparseTensor(
                         idx.cpu().numpy(), val.cpu().numpy(), max_
                     )
-                    out = hstack([out, sparse_tensor.scipy()])
+                    out = hstack([out, sparse_tensor.scipy()]).tocsr()
 
             # Fsp? (not used)
             if fsp is None or len(fsp) == 0:
@@ -150,8 +150,12 @@ class Processor(dev.Processor):
 
             if dense is not None:
                 all_phrases += phrases
-                all_out = out if all_out is None else np.append(all_out, out, 
-                                                                axis=0)
+                if sparse_ is None:
+                    all_out = out if all_out is None else np.append(all_out, out,
+                                                                    axis=0)
+                else:
+                    all_out = out if all_out is None else vstack([all_out, out])
+
         metadata['num_eval_par'] = c_idx
 
         return example['cid'], all_phrases, all_out, metadata
