@@ -56,12 +56,13 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
         ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
         ' --sparse' if sparse else ''
     )
-    merge_cmd = "python merge.py {} {} {} {}{}".format(
+    merge_cmd = "python merge.py {} {} {} {}{}{}".format(
         squad_path,
         context_emb_dir,
         question_emb_dir,
         pred_path,
         ' --q_mat' if not sparse else ''
+        ' --sparse' if sparse else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
@@ -107,7 +108,7 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         ' --sparse' if sparse else ''
     )
     merge_cmd = ("python tfidf_merge.py {} {} {} {} {} {}" +
-                 " --mode {} --tfidf-weight {}{}").format(
+                 " --mode {} --tfidf-weight {}{}{}").format(
         squad_path,
         context_emb_dir,
         doc_tfidf_dir,
@@ -116,7 +117,8 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         pred_path,
         tfidf_mode,
         tfidf_weight,
-        ' --draft' if draft else ''
+        ' --draft' if draft else '',
+        ' --sparse' if sparse else ''
     )
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
