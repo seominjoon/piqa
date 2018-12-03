@@ -193,9 +193,9 @@ if __name__ == '__main__':
     if args.nsml:
         from nsml import DATASET_PATH
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
-        # args.load_dir = 'piqateam/minjoon_squad_2/34' (baseline)
+        # args.load_dir = 'piqateam/minjoon_squad_2/34' # (baseline)
         # args.iteration = '35501'
-        args.load_dir = 'piqateam/minjoon_squad_2/36' (baseline)
+        args.load_dir = 'piqateam/minjoon_squad_2/36' # (sparse)
         args.iteration = '28501'
         args.context_emb_dir = './context_emb'
         args.question_emb_dir = './question_emb'
