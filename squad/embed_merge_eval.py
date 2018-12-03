@@ -26,12 +26,12 @@ def run_commands(cmds):
 def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
             squad_path, large_rand_path, large_tfidf_path, s_question_path,
             context_emb_dir, question_emb_dir, pred_path, draft,
-            batch_size, **kwargs):
+            batch_size, sparse, **kwargs):
     
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
                    " --context_emb_dir {} --max_eval_par {}" +
-                   " --filter_th {}{} --batch_size {}").format(
+                   " --filter_th {}{} --batch_size {}{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
@@ -40,21 +40,21 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
         context_emb_dir,
         max_eval_par,
         0.0 if no_filter else 0.8,
-        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
-         if nsml or not draft else ''),
-        batch_size
+        ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
+        batch_size,
+        ' --sparse' if sparse else ''
     )
     q_embed_cmd = ("python main.py dev --mode embed_question{}{}" +
                    " --load_dir {} --iteration {} --test_path {}"
-                   " --question_emb_dir {}{}").format(
+                   " --question_emb_dir {}{}{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
         iteration,
         s_question_path,
         question_emb_dir,
-        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
-         if nsml or not draft else '')
+        ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
+        ' --sparse' if sparse else ''
     )
     merge_cmd = "python merge.py {} {} {} {} --q_mat".format(
         squad_path,
@@ -74,12 +74,13 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
 def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
            squad_path, large_rand_path, large_tfidf_path, s_question_path,
            context_emb_dir, question_emb_dir, doc_tfidf_dir, que_tfidf_dir,
-           pred_path, draft, tfidf_mode, no_filter, batch_size, **kwargs):
+           pred_path, draft, tfidf_mode, no_filter, batch_size, sparse, 
+           **kwargs):
 
     c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
                    " --context_emb_dir {} --max_eval_par {}" +
-                   " --metadata --filter_th {}{} --batch_size {}").format(
+                   " --metadata --filter_th {}{} --batch_size {}{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
@@ -88,21 +89,21 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         context_emb_dir,
         max_eval_par,
         0.0 if no_filter else 0.8,
-        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
-         if nsml or not draft else ''),
-        batch_size
+        ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
+        batch_size,
+        ' --sparse' if sparse else ''
     )
     q_embed_cmd = ("python main.py dev --mode embed_question{}{}" +
                    " --load_dir {} --iteration {} --test_path {}"
-                   " --question_emb_dir {}{}").format(
+                   " --question_emb_dir {}{}{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
         load_dir,
         iteration,
         s_question_path,
         question_emb_dir,
-        (' --glove_name glove_squad --preload --num_heads 2 --phrase_filter'
-         if nsml or not draft else '')
+        ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
+        ' --sparse' if sparse else ''
     )
     merge_cmd = ("python tfidf_merge.py {} {} {} {} {} {}" +
                  " --mode {} --tfidf-weight {}{}").format(
@@ -150,6 +151,8 @@ if __name__ == '__main__':
                         default='piqateam_minjoon_squad_2_34')
     parser.add_argument('--iteration', type=str, default='35501')
     parser.add_argument('--batch_size', type=str, default=64)
+    parser.add_argument('--sparse', default=False, action='store_true',
+                        help='Use sparse model (S) (default=false)')
 
     # Analysis (large setting)
     parser.add_argument('--mode', type=str, default='NOE',
