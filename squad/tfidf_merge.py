@@ -79,7 +79,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
         if not kwargs['sparse']:
             phrase_emb = np.load(phrase_emb_path)['arr_0']
         else:
-            phrase_emb = load_npz(phrase_emb_path)
+            phrase_emb = load_npz(phrase_emb_path).tocsr()
         if mode == 'E':
             assert phrase_emb.shape[0] == tfidf_vec.shape[0], '{} vs {}'.format(
                 phrase_emb.shape, tfidf_vec.shape)
@@ -93,7 +93,7 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             assert os.path.exists(path)
         que_tfidf_vec = vstack(
             [load_npz(que_tfidf_path) for que_tfidf_path in que_tfidf_paths]
-        )
+        ).tocsr()
 
         # Load question embedding vectors [N X D]
         que_emb_paths = [
@@ -109,9 +109,9 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             )
             que_emb = np.squeeze(que_emb, axis=1)
         else:
-            que_emb = np.stack(
+            que_emb = vstack(
                 [load_npz(que_emb_path) for que_emb_path in que_emb_paths]
-            )
+            ).tocsr()
 
         # Load json file to get raw texts
         c_json_path = os.path.join(context_emb_dir, cid + '.json')
@@ -154,7 +154,8 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
             assert phrase_idxs[-1] == phrase_emb.shape[0]
             
             # Retrieval based on the phrase idxs
-            for q_idx, (q_id, q_emb) in enumerate(zip(q_list, que_emb)):
+            for q_idx, q_id in enumerate(q_list):
+                q_emb = que_emb[q_idx]
                 masked_phrase_emb = phrase_emb[:]
                 range_s = phrase_idxs[sim1[q_idx]]
                 range_e = phrase_idxs[sim1[q_idx]+1]
