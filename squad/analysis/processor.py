@@ -125,6 +125,7 @@ class Processor(dev.Processor):
             if (self._emb_type == 'sparse' or sparse_ is not None) and dense is not None:
                 out = csr_matrix(out)
                 if sparse_ is not None:
+                    from dev.processor import SparseTensor
                     idx, val, max_ = sparse_
                     sparse_tensor = SparseTensor(
                         idx.cpu().numpy(), val.cpu().numpy(), max_
