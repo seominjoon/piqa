@@ -184,7 +184,8 @@ if __name__ == '__main__':
     db = retriever.DocDB(db_path=args.db_path)
 
     # Read result file, which must contain 'closest_docs_n' key
-    with open('results/dev-v1.1-top{}.json'.format(args.n_docs), 'r') as f:
+    with open('results/dev-v1.1-top{}-{}.json'.format(
+        args.n_docs, args.query_type), 'r') as f:
         squad = json.load(f)
         assert len(squad) > 0
         assert 'closest_docs_{}'.format(args.n_docs) in squad[0].keys()
@@ -228,7 +229,8 @@ if __name__ == '__main__':
                         continue
 
                     # For SQuAD doc, we already added it.
-                    if split_title == title or curr_title == title:
+                    if (split_title == title or curr_title == title) and \
+                        not (args.query_type == 'question'):
                         doc_counter -= 1
                         break
 
@@ -248,13 +250,14 @@ if __name__ == '__main__':
             assert len(eval_context) == len(eval_context_src)
         print('Retrieving closest doc texts done')
 
-    # Load retriever
-    ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
-                                          strict=False)
-    print('Retriever loaded from {}'.format(args.retriever_path))
+    if not (args.query_type == 'question'):
+        # Load retriever
+        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
+                                              strict=False)
+        print('Retriever loaded from {}'.format(args.retriever_path))
 
     # Sort and filter paragraphs using TF-IDF
-    if args.tfidf_sort:
+    if args.tfidf_sort and not (args.query_type == 'question'):
         from scipy.sparse import vstack
 
         for item in tqdm(squad):
@@ -293,7 +296,7 @@ if __name__ == '__main__':
                 item['eval_context_src'] = selected_srcs[:]
 
     # Or, we just use random docs
-    else:
+    elif not args.tfidf_sort and not (args.query_type == 'question'):
         for item in tqdm(squad):
             random_docs = np.random.randint(len(ranker.doc_dict[0]), 
                                             size=args.n_pars)
