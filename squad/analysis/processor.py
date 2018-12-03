@@ -148,7 +148,6 @@ class Processor(dev.Processor):
                     for yp1, yp2 in pos_tuple
                 )
 
-
             if dense is not None:
                 all_phrases += phrases
                 all_out = out if all_out is None else np.append(all_out, out, 
