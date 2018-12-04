@@ -28,9 +28,9 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
             context_emb_dir, question_emb_dir, pred_path, draft,
             batch_size, sparse, **kwargs):
     
-    c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
+    c_embed_cmd = ("python main.py dev --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
-                   " --context_emb_dir {} --max_eval_par {}" +
+                   " --context_emb_dir {}" +
                    " --filter_th {}{} --batch_size {}{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
@@ -38,7 +38,6 @@ def run_NOE(nsml, load_dir, iteration, max_eval_par, large_type, no_filter,
         iteration,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
         context_emb_dir,
-        max_eval_par,
         0.0 if no_filter else 0.8,
         ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
         batch_size,
@@ -79,9 +78,9 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
            pred_path, draft, tfidf_mode, no_filter, batch_size, sparse, 
            **kwargs):
 
-    c_embed_cmd = ("python main.py analysis --mode embed_context{}{}" +
+    c_embed_cmd = ("python main.py dev --mode embed_context{}{}" +
                    " --load_dir {} --iteration {} --test_path {}" +
-                   " --context_emb_dir {} --max_eval_par {}" +
+                   " --context_emb_dir {}" +
                    " --metadata --filter_th {}{} --batch_size {}{}").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
@@ -89,7 +88,6 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
         iteration,
         large_rand_path if large_type == 'rand' else large_tfidf_path,
         context_emb_dir,
-        max_eval_par,
         0.0 if no_filter else 0.8,
         ' --glove_name glove_squad --preload --num_heads 2 --phrase_filter',
         batch_size,
@@ -130,14 +128,14 @@ def run_YO(nsml, load_dir, iteration, max_eval_par, large_type, tfidf_weight,
 
 # Predefined paths (for locals)
 data_home = os.path.join(os.path.expanduser('~'), 'data/squad')
-CONTEXT_DIR = os.path.join(data_home, 'context_emb_sp')
-QUESTION_DIR = os.path.join(data_home, 'question_emb_sp')
+CONTEXT_DIR = os.path.join(data_home, 'context_emb')
+QUESTION_DIR = os.path.join(data_home, 'question_emb')
 DOC_TFIDF_DIR = os.path.join(data_home, 'doc_tfidf')
 QUE_TFIDF_DIR = os.path.join(data_home, 'que_tfidf')
 SQUAD_PATH = os.path.join(data_home, 'dev-v1.1.json')
 S_CONTEXT_PATH = os.path.join(data_home, 'dev-v1.1-context.json')
 S_QUESTION_PATH = os.path.join(data_home, 'dev-v1.1-question.json')
-LARGE_RAND_PATH = os.path.join(data_home, 'dev-v1.1-large-rand-par100.json')
+LARGE_RAND_PATH = os.path.join(data_home, 'dev-v1.1-top30docs.json')
 LARGE_TFIDF_PATH = os.path.join(data_home, 
     'dev-v1.1-large-tfidf-doc30-par100.json')
 
@@ -151,11 +149,11 @@ if __name__ == '__main__':
     parser.add_argument('--draft', default=False, action='store_true',
                         help='Use draft (default=local)')
     parser.add_argument('--load_dir', type=str, 
-                        # default='piqateam_minjoon_squad_2_34')
-                        default='piqateam_minjoon_squad_2_36')
+                        default='piqateam_minjoon_squad_2_34')
+                        # default='piqateam_minjoon_squad_2_36')
     parser.add_argument('--iteration', type=str,
-                        # default='35501')
-                        default='28501')
+                        default='35501')
+                        # default='28501')
     parser.add_argument('--batch_size', type=str, default=64)
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='Use sparse model (S) (default=false)')
