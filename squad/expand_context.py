@@ -91,10 +91,10 @@ if __name__ == '__main__':
         return ' '.join(text.split('_'))
     def space2udb(text):
         return '_'.join(text.split(' '))
-    doc_titles = [udb2space(article['title']) for article in squad['data']]
-    print('# of original articles:', len(squad['data']))
     
     # Iterate, and append 
+    new_squad = {'data': []}
+    doc_titles = []
     overlap_docs = 0
     total_docs = 0
     for q, docs in tqdm(q2d.items()):
@@ -108,27 +108,28 @@ if __name__ == '__main__':
                     'title': space2udb(doc),
                     'paragraphs': context_wrapper
                 }
-                squad['data'].append(article_wrapper)
+                new_squad['data'].append(article_wrapper)
             else:
                 overlap_docs += 1
-    assert len(doc_titles) == len(squad['data'])
+    assert len(doc_titles) == len(new_squad['data'])
 
     print('# of total articles:', total_docs)
     print('# of overlap articles:', overlap_docs)
-    print('# of final articles:', len(squad['data']))
+    print('# of final articles:', len(new_squad['data']))
     print('# of final paragraphs:', 
-        sum([len(art['paragraphs']) for art in squad['data']]))
+        sum([len(art['paragraphs']) for art in new_squad['data']]))
 
-    # Remove qas
-    for article in squad['data']:
+    # Sanity check
+    for article in new_squad['data']:
         for para in article['paragraphs']:
-            if 'qas' in para:
-                del para['qas']
+            assert 'qas' not in para
 
     # Split and save
-    split_size = len(squad['data']) // args.n_splits + 1
+    split_size = len(new_squad['data']) // args.n_splits + 1
     for split_num in range(args.n_splits):
         file_name = 'dev-v1.1-top{}docs-{}.json'.format(args.n_docs, split_num)
-        split_data = squad['data'][split_num*split_size:(split_num+1)*split_size]
-        with open(os.path.join('results/dev_splits', file_name), 'w') as f:
+        split_data = new_squad['data'][
+            split_num*split_size:(split_num+1)*split_size
+        ]
+        with open(os.path.join('results/dev_contexts', file_name), 'w') as f:
             json.dump({'data': split_data}, f)
