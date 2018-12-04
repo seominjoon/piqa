@@ -17,30 +17,34 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
 
     # Load retriever
     from drqa import retriever
+    '''
+    '''
     ranker = retriever.get_class('tfidf')(
         tfidf_path=kwargs['retriever_path'],
         strict=False
     )
-    print('Retriever loaded from {}'.format(kwargs['retriever_path']))
+    print('Retriever doc_mat shape {}'.format(ranker.doc_mat.shape))
 
     # Read SQuAD to construct squad-docs, squad-ques
-    from analysis.expand_dev import squad_docs_ques
+    from expand_dev import squad_docs_ques
     from baseline.file_interface import _load_squad
     squad = _load_squad(kwargs['squad_path'])
     squad_docs, squad_ques = squad_docs_ques(squad)
 
-    # Get negative paragraph's source doucment (maybe as a one file)
+    # Gather documents
     if kwargs['dump_nd']:
         aug_docs = set()
         for analysis_path in kwargs['analysis_paths']:
             with open(analysis_path, 'r') as fp:
-                aug_squad = json.load(fp)
-                for aug_item in aug_squad:
-                    for doc_title in aug_item['eval_context_src']:
-                        aug_docs.update([doc_title])
-        print('Dump {} documents from neg pars'.format(len(aug_docs)))
+                q2d = json.load(fp)
+            for qid, doc_ids in q2d.items():
+                if len(doc_ids[0]) != 30:
+                    print('poor query: {} {}'.format(qid, len(doc_ids[0])))
+                for doc_id in doc_ids[0]:
+                    aug_docs.update([doc_id])
+        print('Dump {} documents'.format(len(aug_docs)))
 
-        # Save tf-idf vectors of negative docs 
+        # Save tf-idf vectors of docs 
         title2idx = {}
         idx2title = {}
         doc_idxs = []
@@ -60,13 +64,13 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
         doc_tfidf_mat = csr_matrix.transpose(doc_tfidf_mat).tocsr()
         
         # Save as pickle
-        doc_tfidf_path = os.path.join(context_tfidf_dir + 'neg_doc_mat_tf.pkl')
+        doc_tfidf_path = os.path.join(context_tfidf_dir + 'doc_mat_tf.pkl')
         with open(doc_tfidf_path, 'wb') as f:
             pickle.dump(
                 [title2idx, idx2title, doc_tfidf_mat],
                 f, protocol=pickle.HIGHEST_PROTOCOL
             )
-        print('Negative Document TF-IDF saved as {}'.format(doc_tfidf_path))
+        print('Document TF-IDF saved as {}'.format(doc_tfidf_path))
 
     # Save tf-idf vector of documents
     if kwargs['dump_d']:
@@ -101,6 +105,7 @@ ANALYSIS_PATH1 = os.path.join(home, 'data/squad',
     'dev-v1.1-large-rand-par100.json')
 ANALYSIS_PATH2 = os.path.join(home, 'data/squad',
     'dev-v1.1-large-tfidf-doc30-par100.json')
+ANALYSIS_PATH3 = os.path.join(home, 'data/squad/dev_contexts/q2d_30.json')
 
 
 if __name__ == '__main__':
@@ -112,7 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--squad-path', type=str, default=SQUAD_PATH,
                         help='SQuAD dataset path')
     parser.add_argument('--analysis-paths', type=list,
-                        default=[ANALYSIS_PATH1, ANALYSIS_PATH2],
+                        default=[ANALYSIS_PATH3],
                         help='SQuAD dataset path')
     parser.add_argument('--dump-nd', default=False, action='store_true',
                         help='Dump negative docs from analysis file')
