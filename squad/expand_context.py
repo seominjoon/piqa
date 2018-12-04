@@ -57,7 +57,7 @@ if __name__ == '__main__':
         squad = json.load(fp)
 
     # Make q2d or load
-    if not os.path.exists('results/q2d_{}.json'.format(args.n_docs)):
+    if not os.path.exists('results/q2d_30.json'):
         ranker = retriever.get_class('tfidf')(
             tfidf_path=args.retriever_path,
             strict=False
@@ -81,7 +81,7 @@ if __name__ == '__main__':
             json.dump(q2d, f)
     else:
         # Load saved file
-        with open('results/q2d_{}.json'.format(args.n_docs), 'r') as f:
+        with open('results/q2d_30.json', 'r') as f:
             q2d = json.load(f)
 
     # Load Wikipedia DB
@@ -96,8 +96,11 @@ if __name__ == '__main__':
     print('# of original articles:', len(squad['data']))
     
     # Iterate, and append 
+    overlap_docs = 0
+    total_docs = 0
     for q, docs in tqdm(q2d.items()):
-        for doc in docs[0]:
+        total_docs += len(docs[0][:args.n_docs])
+        for doc in docs[0][:args.n_docs]:
             if doc not in doc_titles:
                 doc_titles.append(doc)
                 text = list(_split_doc(db.get_doc_text(doc)))[1:]
@@ -107,7 +110,14 @@ if __name__ == '__main__':
                     'paragraphs': context_wrapper
                 }
                 squad['data'].append(article_wrapper)
-    print('# of articles with augmentation:', len(squad['data']))
+            else:
+                overlap_docs += 1
+
+    print('# of total articles:', total_docs)
+    print('# of overlap articles:', overlap_docs)
+    print('# of final articles:', len(squad['data']))
+    print('# of final paragraphs:', 
+        sum([len(art['paragraphs']) for art in squad['data']]))
 
     # Remove qas
     for article in squad['data']:
