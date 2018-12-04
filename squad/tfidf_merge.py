@@ -33,6 +33,18 @@ def concat_merge_tfidf(c2q, context_emb_dir, doc_tfidf_dir,
     with open(pos_doc_mat_path, 'rb') as f:
         pos_doc_mat = pickle.load(f)
 
+    # Precompute doc-que tfidf (key: docid_qid)
+    que_stack = []
+    que_ids = []
+    print('Precomputing doc-que tfidf')
+    for path in tqdm(os.listdir(que_tfidf_dir)):
+        que_tfidf = load_npz(os.path.join(que_tfidf_dir, path))
+        que_stack.append(que_tfidf)
+        que_ids.append(os.path.splitext(os.path.splitext(path)[0])[0])
+    que_mat = vstack(que_stack)
+    print(que_mat.shape, neg_doc_mat[2].shape)
+    exit()
+
     predictions = {}
     for cid, q_list in tqdm(c2q.items()):
 
