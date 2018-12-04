@@ -28,7 +28,7 @@ DB_PATH = os.path.join(home, 'Desktop/Jinhyuk/github/DrQA/data',
 
 if __name__ == '__main__':
 
-    # Parse arguments
+    # Fixed arguments
     parser = argparse.ArgumentParser(description='Expand script for analysis')
     parser.add_argument('--data-path', type=str, default=DATA_PATH,
                         help='Dataset file path')
@@ -36,19 +36,19 @@ if __name__ == '__main__':
                         help='Document Retriever path')
     parser.add_argument('--db-path', type=str, default=DB_PATH,
                         help='Wikipedia DB path')
-    parser.add_argument('--n-docs', type=int, default=30,
-                        help='Number of closest documents per ex')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='Number of process workers')
     parser.add_argument('--seed', type=int, default=999,
                         help='Random seed (for reproducibility)')
-    parser.add_argument('--query-type', type=str, default='question',
-                        help='context|question')
-    parser.add_argument('--draft', default=False, action='store_true')
+
+    # Controllable arguments
+    parser.add_argument('--n-docs', type=int, default=30,
+                        help='Number of closest documents per ex')
+    parser.add_argument('--n-splits', type=int, default=100,
+                        help='Number of json splits')
     args = parser.parse_args()
 
     print('# of closest docs: {}'.format(args.n_docs))
-    print('Query type: {}'.format(args.query_type))
 
     # Prepare seed, dataset
     random.seed(args.seed)
@@ -85,14 +85,13 @@ if __name__ == '__main__':
             q2d = json.load(f)
 
     # Load Wikipedia DB
+    from expand_dev import _split_doc
     db = retriever.DocDB(db_path=args.db_path)
     def udb2space(text):
         return ' '.join(text.split('_'))
     def space2udb(text):
         return '_'.join(text.split(' '))
     doc_titles = [udb2space(article['title']) for article in squad['data']]
-    from expand_dev import _split_doc
-
     print('# of original articles:', len(squad['data']))
     
     # Iterate, and append 
@@ -112,6 +111,7 @@ if __name__ == '__main__':
                 squad['data'].append(article_wrapper)
             else:
                 overlap_docs += 1
+    assert len(doc_titles) == len(squad['data'])
 
     print('# of total articles:', total_docs)
     print('# of overlap articles:', overlap_docs)
@@ -125,6 +125,10 @@ if __name__ == '__main__':
             if 'qas' in para:
                 del para['qas']
 
-    # Save
-    with open('dev-v1.1-top{}docs.json'.format(args.n_docs), 'w') as f:
-        json.dump(squad, f)
+    # Split and save
+    split_size = len(squad['data']) // args.n_splits + 1
+    for split_num in range(args.n_splits):
+        file_name = 'dev-v1.1-top{}docs-{}.json'.format(args.n_docs, split_num)
+        split_data = squad['data'][split_num*split_size:(split_num+1)*split_size]
+        with open(os.path.join('results/dev_splits', file_name), 'w') as f:
+            json.dump({'data': split_data}, f)

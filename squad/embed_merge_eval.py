@@ -135,7 +135,8 @@ QUE_TFIDF_DIR = os.path.join(data_home, 'que_tfidf')
 SQUAD_PATH = os.path.join(data_home, 'dev-v1.1.json')
 S_CONTEXT_PATH = os.path.join(data_home, 'dev-v1.1-context.json')
 S_QUESTION_PATH = os.path.join(data_home, 'dev-v1.1-question.json')
-LARGE_RAND_PATH = os.path.join(data_home, 'dev-v1.1-top30docs.json')
+LARGE_RAND_PATH = os.path.join(data_home,
+    'dev_contexts/top30/dev-v1.1-top30docs-49.json')
 LARGE_TFIDF_PATH = os.path.join(data_home, 
     'dev-v1.1-large-tfidf-doc30-par100.json')
 
