@@ -221,7 +221,8 @@ if __name__ == '__main__':
 
                 # Skip short text
                 if all([len(par) < 500 for par in _split_doc(text)]):
-                    continue
+                    if not (args.query_type == 'question'):
+                        continue
 
                 for split_idx, split in enumerate(_split_doc(text)):
                     if split_idx == 0: # skip titles
@@ -236,11 +237,13 @@ if __name__ == '__main__':
 
                     # Or, use what we've retrieved
                     else:
-                        if len(split) >= 500:
-                            eval_context.append(split)
-                            eval_context_src.append(split_title)
-                            if not args.par_open:
-                                open_context.update([split])
+                        if not (args.query_type == 'question'):
+                            if len(split) < 500:
+                                continue
+                        eval_context.append(split)
+                        eval_context_src.append(split_title)
+                        if not args.par_open:
+                            open_context.update([split])
 
                 doc_counter += 1
                 if doc_counter == args.n_docs_max:
