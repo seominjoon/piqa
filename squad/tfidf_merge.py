@@ -6,7 +6,6 @@ import argparse
 import json
 import sys
 import pickle
-import glob
 
 import scipy.sparse
 import numpy as np
@@ -51,13 +50,9 @@ def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse,
             p_pred_phrases = []
             p_pred_scores = []
 
-            # Load metadata/emb/json for each paragraph
+            # Load emb/json for each paragraph
             did_u = '_'.join(did.split(' '))
             pids = [did_u + '_{}'.format(k) for k in range(dlen)]
-            p_meta_paths = [
-                os.path.join(p_emb_dir, pid + '.metadata') for pid in pids
-                if os.path.exists(os.path.join(p_emb_dir, pid + '.metadata'))
-            ]
             p_emb_paths = [
                 os.path.join(p_emb_dir, pid + '.npz') for pid in pids
                 if os.path.exists(os.path.join(p_emb_dir, pid + '.npz'))
@@ -66,23 +61,19 @@ def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse,
                 os.path.join(p_emb_dir, pid + '.json') for pid in pids
                 if os.path.exists(os.path.join(p_emb_dir, pid + '.json'))
             ]
-            assert len(p_meta_paths) == len(p_emb_paths) == len(p_json_paths)
-            if len(p_meta_paths) == 0:
-                # TODO: add exception here
+            assert len(p_emb_paths) == len(p_json_paths)
+            if len(p_emb_paths) != dlen:
                 continue
 
-            for meta_path, emb_path, json_path in zip(p_meta_paths, 
-                                                      p_emb_paths, 
-                                                      p_json_paths):
-                # Metadata (What for?)
-                with open(meta_path, 'r') as fp:
-                    metadata = json.load(fp)
+            for emb_path, json_path in zip(p_emb_paths, p_json_paths):
 
                 # Embeddings 
                 if not sparse:
                     p_emb = np.load(emb_path)['arr_0']
                 else:
                     p_emb = load_npz(emb_path)
+                if len(p_emb.shape) == 0:
+                    continue
 
                 # Jsons
                 with open(json_path, 'r') as fp:
@@ -123,7 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('p_emb_dir', help='Phrase embedding directory')
     parser.add_argument('q_emb_dir', help='Question embedding directory')
     parser.add_argument('pred_path', help='Prediction json file path')
-    parser.add_argument('--max-n-docs', type=int, default=1)
+    parser.add_argument('--max-n-docs', type=int, default=10)
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='If stored phrase vecs are sparse vec or not')
     parser.add_argument('--tfidf-weight', type=float, default=1e-1,
