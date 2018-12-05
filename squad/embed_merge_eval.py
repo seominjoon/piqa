@@ -2,7 +2,7 @@
 Wrapper script for easy evaluation.
 
 Usage:
-    $ python embed_merge_eval.py [--nsml] [--mode] [--large_type]
+    $ python embed_merge_eval.py [--nsml]
 """
 
 import subprocess
@@ -14,13 +14,15 @@ from pprint import pprint
 
 
 def run_commands(cmds):
+    start = time.time()
     for cmd_idx, cmd in enumerate(cmds):
         print('Command #{}\n{}'.format(cmd_idx, cmd))
         status = subprocess.call(cmd.split(' '))
         if status != 0:
             print('Failure with exit code: {}'.format(status))
-            break
-
+            elapsed = str(datetime.timedelta(seconds=time.time()-start))
+            return elapsed
+    return elapsed
 
 def embed_context(nsml, draft, load_dir, iteration,
                   context_paths, context_emb_dir,
@@ -60,7 +62,7 @@ def embed_question(nsml, draft, load_dir, iteration,
                    " --num_heads 2 --phrase_filter").format(
         ' --cuda' if nsml else '',
         ' --draft' if draft else '',
-        ' --sparse' if sparse else ''
+        ' --sparse' if sparse else '',
         load_dir,
         iteration,
         question_path,
@@ -94,16 +96,12 @@ def merge_eval(nsml, draft, sparse, squad_path,
 data_home = os.path.join(os.path.expanduser('~'), 'data/squad')
 CONTEXT_DIR = os.path.join(data_home, 'context_emb_10')
 QUESTION_DIR = os.path.join(data_home, 'question_emb_10')
-DOC_TFIDF_DIR = os.path.join(data_home, 'doc_tfidf')
-QUE_TFIDF_DIR = os.path.join(data_home, 'que_tfidf')
 SQUAD_PATH = os.path.join(data_home, 'dev-v1.1.json')
-S_CONTEXT_PATH = os.path.join(data_home, 'dev-v1.1-context.json')
-S_QUESTION_PATH = os.path.join(data_home, 'dev-v1.1-question.json')
-LARGE_RAND_PATH = os.path.join(data_home,
-    'dev_contexts/top10/dev-v1.1-top10docs-0.json')
-    'dev_contexts/top10/dev-v1.1-top10docs-0.json')
-LARGE_TFIDF_PATH = os.path.join(data_home, 
-    'dev-v1.1-large-tfidf-doc30-par100.json')
+Q2D_PATH = os.path.join(data_home, 'q2d_30.json')
+QUESTION_PATH = os.path.join(data_home, 'dev-v1.1-question.json')
+CONTEXT_PATHS = [os.path.join(data_home,
+    'dev_contexts/top10/dev-v1.1-top10docs-{}.json'.format(k)) 
+    for k in range(1)]
 
 
 if __name__ == '__main__':
@@ -123,13 +121,12 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=str, default=64)
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='Use sparse model (S) (default=false)')
+    parser.add_argument('--embed_c', default=False, action='store_true')
+    parser.add_argument('--embed_q', default=False, action='store_true')
+    parser.add_argument('--merge', default=False, action='store_true')
 
-    # Analysis (large setting)
-    parser.add_argument('--mode', type=str, default='NOE',
-                        help='NOE|YOP|YOE')
-    parser.add_argument('--large_type', type=str, default='rand',
-                        help='rand|tfidf')
-    parser.add_argument('--tfidf_weight', type=float, default=1e-1,
+    # Analysis 
+    parser.add_argument('--tfidf_weight', type=float, default=0.0,
                         help='tfidf concat weighting')
     parser.add_argument('--no_filter', default=False, action='store_true',
                         help='No filter (default=use)')
@@ -137,16 +134,13 @@ if __name__ == '__main__':
     # Dirs
     parser.add_argument('--context_emb_dir', type=str, default=CONTEXT_DIR)
     parser.add_argument('--question_emb_dir', type=str, default=QUESTION_DIR)
-    parser.add_argument('--doc_tfidf_dir', type=str, default=DOC_TFIDF_DIR)
-    parser.add_argument('--que_tfidf_dir', type=str, default=QUE_TFIDF_DIR)
 
     # Paths
     parser.add_argument('--squad_path', type=str, default=SQUAD_PATH)
-    parser.add_argument('--s_context_path', type=str, default=S_CONTEXT_PATH)
-    parser.add_argument('--s_question_path', type=str, default=S_QUESTION_PATH)
+    parser.add_argument('--q2d_path', type=str, default=Q2D_PATH)
+    parser.add_argument('--question_path', type=str, default=QUESTION_PATH)
     parser.add_argument('--pred_path', type=str, default='./test_pred.json')
-    parser.add_argument('--large_rand_path', type=str, default=LARGE_RAND_PATH)
-    parser.add_argument('--large_tfidf_path', type=str, default=LARGE_TFIDF_PATH)
+    parser.add_argument('--context_paths', type=list, default=CONTEXT_PATHS)
  
     args = parser.parse_args()
 
@@ -167,36 +161,37 @@ if __name__ == '__main__':
         args.iteration = '28501'
         args.context_emb_dir = './context_emb'
         args.question_emb_dir = './question_emb'
-        args.doc_tfidf_dir = os.path.join(nsml_data_home, 'doc_tfidf')
-        args.que_tfidf_dir = os.path.join(nsml_data_home, 'que_tfidf')
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
-        args.s_context_path = os.path.join(nsml_data_home,
-            'dev-v1.1-context.json')
-        args.s_question_path = os.path.join(nsml_data_home,
+        args.q2d_path = os.path.join(nsml_data_home, 'q2d_30.json')
+        args.question_path = os.path.join(nsml_data_home,
             'dev-v1.1-question.json')
-        args.large_rand_path = os.path.join(nsml_data_home,
-            'dev-v1.1-large-rand-par100.json')
-        args.large_tfidf_path = os.path.join(nsml_data_home,
-            'dev-v1.1-large-tfidf-doc30-par100.json')
+        args.context_paths = [os.path.join(nsml_data_home,
+            'dev_contexts/top10/dev-v1.1-top10docs-{}.json'.format(k)) 
+            for k in range(100)]
 
     pprint(args.__dict__)
 
     # Path check
     for key, val in args.__dict__.items():
         if key == 'pred_path': continue
-        if 'path' in key:
+        if 'paths' in key:
+            for path in val:
+                assert os.path.exists(path), '{} does not exist'.format(path)
+        elif 'path' in key:
             assert os.path.exists(val), '{} does not exist'.format(val)
 
     # Get commands based on the mode
-    start = time.time()
-    if args.mode == 'NOE':
-        cmds = run_NOE(**args.__dict__)
-    elif args.mode == 'YOP':
-        cmds = run_YO(tfidf_mode='P', **args.__dict__)
-    elif args.mode == 'YOE':
-        cmds = run_YO(tfidf_mode='E', **args.__dict__)
-    else:
-        raise NotImplementedError('Not supported mode: {}'.format(args.mode))
+    if args.embed_c:
+        cmds = embed_context(**args.__dict__)
+        elapsed = run_commands(cmds)
+        print('context embed: {}'.format(elapsed))
 
-    run_commands(cmds)
-    print('Time: {}'.format(str(datetime.timedelta(seconds=time.time()-start))))
+    if args.embed_q:
+        cmds = embed_question(**args.__dict__)
+        elapsed = run_commands(cmds)
+        print('question embed: {}'.format(elapsed))
+
+    if args.merge:
+        cmds = merge_eval(**args.__dict__)
+        elapsed = run_commands(cmds)
+        print('merge + eval: {}'.format(elapsed))

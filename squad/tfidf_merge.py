@@ -62,7 +62,7 @@ def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse,
                 if os.path.exists(os.path.join(p_emb_dir, pid + '.json'))
             ]
             assert len(p_emb_paths) == len(p_json_paths)
-            if len(p_emb_paths) != dlen:
+            if len(p_emb_paths) < dlen:
                 continue
 
             for emb_path, json_path in zip(p_emb_paths, p_json_paths):
@@ -87,6 +87,9 @@ def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse,
                 max_idx = np.argmax(scores, axis=0)
                 p_pred_phrases.append(phrases[max_idx])
                 p_pred_scores.append(scores[max_idx])
+
+            if len(p_pred_scores) == 0:
+                continue
 
             # TODO: could do answer aggregation here (strength-based)
             # Score from a single document
