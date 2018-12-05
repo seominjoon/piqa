@@ -107,7 +107,7 @@ CONTEXT_PATHS = [os.path.join(data_home,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='embed, merge, then eval')
 
-    # Model
+    # Load / Run setting
     parser.add_argument('--nsml', default=False, action='store_true',
                         help='Use nsml (default=local)')
     parser.add_argument('--draft', default=False, action='store_true',
@@ -118,18 +118,20 @@ if __name__ == '__main__':
     parser.add_argument('--iteration', type=str,
                         default='35501')
                         # default='28501')
-    parser.add_argument('--batch_size', type=str, default=64)
-    parser.add_argument('--sparse', default=False, action='store_true',
-                        help='Use sparse model (S) (default=false)')
+
+    # Mode
     parser.add_argument('--embed_c', default=False, action='store_true')
     parser.add_argument('--embed_q', default=False, action='store_true')
     parser.add_argument('--merge', default=False, action='store_true')
 
-    # Analysis 
+    # Controllable arguments
     parser.add_argument('--tfidf_weight', type=float, default=0.0,
                         help='tfidf concat weighting')
     parser.add_argument('--no_filter', default=False, action='store_true',
                         help='No filter (default=use)')
+    parser.add_argument('--sparse', default=False, action='store_true',
+                        help='Use sparse model (S) (default=false)')
+    parser.add_argument('--batch_size', type=str, default=64)
 
     # Dirs
     parser.add_argument('--context_emb_dir', type=str, default=CONTEXT_DIR)
@@ -138,9 +140,9 @@ if __name__ == '__main__':
     # Paths
     parser.add_argument('--squad_path', type=str, default=SQUAD_PATH)
     parser.add_argument('--q2d_path', type=str, default=Q2D_PATH)
+    parser.add_argument('--context_paths', type=list, default=CONTEXT_PATHS)
     parser.add_argument('--question_path', type=str, default=QUESTION_PATH)
     parser.add_argument('--pred_path', type=str, default='./test_pred.json')
-    parser.add_argument('--context_paths', type=list, default=CONTEXT_PATHS)
  
     args = parser.parse_args()
 
@@ -163,11 +165,11 @@ if __name__ == '__main__':
         args.question_emb_dir = './question_emb'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
         args.q2d_path = os.path.join(nsml_data_home, 'q2d_30.json')
-        args.question_path = os.path.join(nsml_data_home,
-            'dev-v1.1-question.json')
         args.context_paths = [os.path.join(nsml_data_home,
             'dev_contexts/top10/dev-v1.1-top10docs-{}.json'.format(k)) 
             for k in range(100)]
+        args.question_path = os.path.join(nsml_data_home,
+            'dev-v1.1-question.json')
 
     pprint(args.__dict__)
 
