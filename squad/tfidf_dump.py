@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import pickle
 
-from scipy.sparse import save_npz, csr_matrix
+from scipy.sparse import save_npz, csr_matrix, load_npz, vstack
 from tqdm import tqdm
 
 
@@ -17,8 +17,6 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
 
     # Load retriever
     from drqa import retriever
-    '''
-    '''
     ranker = retriever.get_class('tfidf')(
         tfidf_path=kwargs['retriever_path'],
         strict=False
@@ -31,7 +29,7 @@ def dump_tfidf(context_tfidf_dir, question_tfidf_dir, **kwargs):
     squad = _load_squad(kwargs['squad_path'])
     squad_docs, squad_ques = squad_docs_ques(squad)
 
-    # Gather documents
+    # Save document vectors
     if kwargs['dump_nd']:
         aug_docs = set()
         for analysis_path in kwargs['analysis_paths']:
@@ -121,6 +119,8 @@ if __name__ == '__main__':
                         help='SQuAD dataset path')
     parser.add_argument('--dump-nd', default=False, action='store_true',
                         help='Dump negative docs from analysis file')
+    parser.add_argument('--dump-qd', default=False, action='store_true',
+                        help='Dump que-docs score')
     parser.add_argument('--dump-d', default=False, action='store_true',
                         help='Dump docs from squad file')
     parser.add_argument('--dump-q', default=False, action='store_true',

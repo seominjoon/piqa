@@ -15,6 +15,7 @@ import random
 from tqdm import tqdm
 from drqa import retriever, tokenizers
 from drqa.retriever import utils
+from expand_dev import _split_doc
 
 
 # Predefined paths
@@ -50,11 +51,12 @@ if __name__ == '__main__':
 
     print('# of closest docs: {}'.format(args.n_docs))
 
-    # Prepare seed, dataset
+    # Prepare seed, dataset, DB
     random.seed(args.seed)
     np.random.seed(args.seed)
     with open(args.data_path, 'r') as fp:
         squad = json.load(fp)
+    db = retriever.DocDB(db_path=args.db_path)
 
     # Make q2d or load
     if not os.path.exists('results/q2d_30.json'):
@@ -74,21 +76,19 @@ if __name__ == '__main__':
                         k=args.n_docs,
                         num_workers=args.num_workers
                     )[0]
-                    q2d[qas['id']] = [ranked[0], ranked[1].tolist()]
+                    doc_len = [len(list(_split_doc(db.get_doc_text(doc)))[1:])
+                               for doc in ranked[0]]
+                    q2d[qas['id']] = [ranked[0], ranked[1].tolist(), doc_len]
 
         # Save as file
         with open('q2d_{}.json'.format(args.n_docs), 'w') as f:
             json.dump(q2d, f)
+            exit()
     else:
         # Load saved file
         with open('results/q2d_30.json', 'r') as f:
             q2d = json.load(f)
 
-    # Load Wikipedia DB
-    from expand_dev import _split_doc
-    db = retriever.DocDB(db_path=args.db_path)
-    def udb2space(text):
-        return ' '.join(text.split('_'))
     def space2udb(text):
         return '_'.join(text.split(' '))
     
