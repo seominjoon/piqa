@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import pickle
 
-from scipy.sparse import save_npz, csr_matrix, load_npz, vstack
+from scipy.sparse import save_npz, csr_matrix
 from tqdm import tqdm
 
 
@@ -119,8 +119,6 @@ if __name__ == '__main__':
                         help='SQuAD dataset path')
     parser.add_argument('--dump-nd', default=False, action='store_true',
                         help='Dump negative docs from analysis file')
-    parser.add_argument('--dump-qd', default=False, action='store_true',
-                        help='Dump que-docs score')
     parser.add_argument('--dump-d', default=False, action='store_true',
                         help='Dump docs from squad file')
     parser.add_argument('--dump-q', default=False, action='store_true',
