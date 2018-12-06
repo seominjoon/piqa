@@ -101,16 +101,13 @@ def merge(nsml, draft, sparse, context_path,
 
 
 def aggregate(squad_path, pred_dir, **kwargs):
-    agg1_cmd = "python aggregate_pred.py --pred_dir {}".format(
+    agg_cmd = "python aggregate_pred.py --pred_dir {} --with_score".format(
         pred_dir
     )
-    eval_cmd = "python evaluate.py {} new_pred.json".format(
+    eval_cmd = "python partial_evaluate.py {} new_pred.json".format(
         squad_path
     )
-    agg2_cmd = "python aggregate_pred.py --pred_dir {} --with_score".format(
-        pred_dir
-    )
-    return [agg1_cmd, eval_cmd, agg2_cmd]
+    return [agg_cmd, eval_cmd]
     
 
 # Predefined paths (for locals)
@@ -144,7 +141,6 @@ if __name__ == '__main__':
     # Mode
     parser.add_argument('--embed_c', default=False, action='store_true')
     parser.add_argument('--embed_q', default=False, action='store_true')
-    parser.add_argument('--aggregate', default=False, action='store_true')
 
     # Controllable arguments
     parser.add_argument('--tfidf_weight', type=float, default=0.0,
@@ -174,6 +170,7 @@ if __name__ == '__main__':
 
     # Change arguments for draft / NSML / sparse
     assert not (args.draft and args.nsml), 'NSML+Draft not supported'
+    # TODO: debug for draft (not working probably)
     if args.draft:
         args.load_dir = '/tmp/piqa/squad/save'
         args.iteration = '1'
