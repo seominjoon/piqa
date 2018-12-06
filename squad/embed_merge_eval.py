@@ -24,6 +24,27 @@ def run_commands(cmds):
     return str(datetime.timedelta(seconds=time.time()-start))
 
 
+def embed_question(nsml, draft, load_dir, iteration,
+                   question_path, question_emb_dir,
+                   sparse, **kwargs):
+
+    q_embed_cmd = ("python main.py dev --mode embed_question{}{}{}" +
+                   " --load_dir {} --iteration {} --test_path {}"
+                   " --question_emb_dir {}" +
+                   " --glove_name glove_squad --preload" +
+                   " --num_heads 2 --phrase_filter").format(
+        ' --cuda' if nsml else '',
+        ' --draft' if draft else '',
+        ' --sparse' if sparse else '',
+        load_dir,
+        iteration,
+        question_path,
+        question_emb_dir
+    )
+
+    return [q_embed_cmd]
+
+
 def embed_context(nsml, draft, load_dir, iteration,
                   context_paths, context_emb_dirs, pred_paths,
                   no_filter, sparse, batch_size, **kwargs):
@@ -62,27 +83,6 @@ def embed_context(nsml, draft, load_dir, iteration,
     return cmds
 
 
-def embed_question(nsml, draft, load_dir, iteration,
-                   question_path, question_emb_dir,
-                   sparse, **kwargs):
-
-    q_embed_cmd = ("python main.py dev --mode embed_question{}{}{}" +
-                   " --load_dir {} --iteration {} --test_path {}"
-                   " --question_emb_dir {}" +
-                   " --glove_name glove_squad --preload" +
-                   " --num_heads 2 --phrase_filter").format(
-        ' --cuda' if nsml else '',
-        ' --draft' if draft else '',
-        ' --sparse' if sparse else '',
-        load_dir,
-        iteration,
-        question_path,
-        question_emb_dir
-    )
-
-    return [q_embed_cmd]
-
-
 def merge(nsml, draft, sparse, context_path,
           d2q_path, context_emb_dir, question_emb_dir, pred_path,
           tfidf_weight, top_n_docs, **kwargs):
@@ -97,15 +97,18 @@ def merge(nsml, draft, sparse, context_path,
         top_n_docs,
         ' --sparse' if sparse else ''
     )
-
     return [merge_cmd]
 
 
-def aggregate():
-    pass
+def aggregate(pred_dir, **kwargs):
+    agg_cmd = "python aggregate_pred.py --pred_dir {} --with_score".format(
+        pred_dir
+    )
+    return [agg_cmd]
+    
 
-
-def evaluate(squad_path, pred_path):
+# Not used
+def evaluate(squad_path, pred_path, **kwargs):
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
         pred_path
@@ -123,6 +126,7 @@ QUESTION_PATH = os.path.join(data_home, 'dev-v1.1-question.json')
 CONTEXT_PATHS = [os.path.join(data_home,
     'dev_contexts/top30/dev-v1.1-top30docs-{}.json'.format(k)) 
     for k in range(100)]
+PREDICTION_DIR = './preds'
 
 
 if __name__ == '__main__':
@@ -161,6 +165,7 @@ if __name__ == '__main__':
     # Dirs
     parser.add_argument('--context_emb_base', type=str, default=CONTEXT_BASE)
     parser.add_argument('--question_emb_dir', type=str, default=QUESTION_DIR)
+    parser.add_argument('--pred_dir', type=str, default=PREDICTION_DIR)
 
     # Paths
     parser.add_argument('--squad_path', type=str, default=SQUAD_PATH)
@@ -206,7 +211,9 @@ if __name__ == '__main__':
         context_emb_dirs.append(
             os.path.join(args.context_emb_base, str(path_idx))
         )
-        pred_paths.append('./pred_{}.json'.format(path_idx))
+        pred_paths.append(
+            os.path.join(args.pred_dir, 'pred_{}.json'.format(path_idx))
+        )
     pprint(args.__dict__)
 
     # Path check
@@ -229,9 +236,7 @@ if __name__ == '__main__':
             pred_paths=pred_paths,
             **args.__dict__
         )
+        cmds += aggregate(**args.__dict__)
         elapsed = run_commands(cmds)
-        print('context embed + merge: {}'.format(elapsed))
-
-    if args.aggregate:
-        raise NotImplementedError()
+        print('context embed + merge + aggregate: {}'.format(elapsed))
 
