@@ -208,6 +208,8 @@ if __name__ == '__main__':
         pred_paths.append(
             os.path.join(args.pred_dir, 'pred_{}.json'.format(path_idx))
         )
+    if not os.path.exists(args.pred_dir):
+        os.makedirs(args.pred_dir)
     pprint(args.__dict__)
 
     # Path check
