@@ -70,7 +70,7 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
         q_emb = stack(q_embs) if len(q_embs) > 1 else q_embs[0]
 
         # Load emb/json for each paragraph
-        did_u = '_'.join(did.split(' '))
+        did_u = '_'.join(did.split(' ')).replace('/', '_')
         pids = [did_u + '_{}'.format(k) for k in range(dlen)]
         p_emb_paths = [
             os.path.join(p_emb_dir, pid + '.npz') for pid in pids

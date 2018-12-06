@@ -206,7 +206,7 @@ if __name__ == '__main__':
         context_emb_dirs.append(
             os.path.join(args.context_emb_base, str(path_idx))
         )
-        pred_paths.append('./test_pred_{}.json'.format(path_idx))
+        pred_paths.append('./pred_{}.json'.format(path_idx))
     pprint(args.__dict__)
 
     # Path check
