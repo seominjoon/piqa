@@ -14,21 +14,31 @@ import torch
 from scipy.sparse import csr_matrix, hstack, vstack, save_npz, load_npz
 from tqdm import tqdm
 
+# TODO: prediction_0.json merge script
 
-def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse, 
+def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
+                tfidf_weight, sparse, 
                 max_n_docs, cuda, **kwargs):
 
-    # Load q2d mapping, scores, lengths
-    with open(q2d_path, 'rb') as f:
-        q2d = json.load(f)
+    # Load d2q mapping, and context file
+    with open(context_path, 'rb') as f:
+        contexts = json.load(f)
+        doc_set = [d['title'] for d in contexts['data']]
+    with open(d2q_path, 'rb') as f:
+        d2q = json.load(f)
+        new_d2q = {}
+        for did, val in d2q.items():
+            if '_'.join(did.split(' ')) in doc_set:
+                new_d2q[did] = val
+        d2q = new_d2q
+        num_q = sum([len(q['qids']) for q in d2q.values()])
+        uq = [[k[0] for k in q['qids']] for q in d2q.values()]
+        uq = set([q for ql in uq for q in ql])
 
-    # qid||did => score
-    qd_score = {}
-    for qid, docs in q2d.items():
-        for did, doc_score, _ in zip(*docs):
-            qd_score[qid + '||' + did] = doc_score
-    print('Number of questions to process: {}'.format(len(q2d)))
-    print('Number of paragraphs to process: {}'.format(len(qd_score)))
+    print('Processing outputs of file: {}'.format(context_path))
+    print('Number of documents to process: {}'.format(len(doc_set)))
+    print('Number of questions to process: {}'.format(num_q))
+    print('Number of unique questions to process: {}'.format(len(uq)))
 
     # Load/stack function for dense/sparse
     if not sparse:
@@ -39,69 +49,64 @@ def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse,
         stack = vstack
 
     predictions = {}
-    for qid, docs in tqdm(q2d.items()):
+    for did, val in tqdm(d2q.items()):
+        qlist = val['qids']
+        dlen = val['length']
 
-        # Load question embedding vectors [1 X D]
-        q_emb_path = os.path.join(q_emb_dir, qid + '.npz')
-        assert os.path.exists(q_emb_path)
-        q_emb = load(q_emb_path)
+        # Load question embedding vectors [N X D]
+        q_embs = []
+        q_emb_paths = [
+            os.path.join(q_emb_dir, qid[0] + '.npz') for qid in qlist
+        ]
+        for q_emb_path in q_emb_paths:
+            assert os.path.exists(q_emb_path)
+            q_embs.append(load(q_emb_path))
+        q_emb = stack(q_embs)
 
-        # stores argmax of each document
-        d_pred_phrases = []
-        d_pred_scores = []
+        # Load emb/json for each paragraph
+        did_u = '_'.join(did.split(' '))
+        pids = [did_u + '_{}'.format(k) for k in range(dlen)]
+        p_emb_paths = [
+            os.path.join(p_emb_dir, pid + '.npz') for pid in pids
+            if os.path.exists(os.path.join(p_emb_dir, pid + '.npz'))
+        ]
+        p_json_paths = [
+            os.path.join(p_emb_dir, pid + '.json') for pid in pids
+            if os.path.exists(os.path.join(p_emb_dir, pid + '.json'))
+        ]
+        assert len(p_emb_paths) == len(p_json_paths)
 
-        # For each document, get best phrase with score 
-        for n_docs, (did, dscore, dlen) in enumerate(zip(*docs)):
+        # Phrase embedding stack
+        p_embs = [load(emb_path) for emb_path in p_emb_paths]
+        p_embs = [emb for emb in p_embs if len(emb.shape) > 0]
+        if len(p_embs) == 0:
+            continue
+        p_emb = stack(p_embs)
+        
+        # Phrase json
+        phrases = []
+        for json_path in p_json_paths:
+            with open(json_path, 'r') as fp:
+                phrases += json.load(fp)
+        assert len(phrases) == p_emb.shape[0]
 
-            # Load emb/json for each paragraph
-            did_u = '_'.join(did.split(' '))
-            pids = [did_u + '_{}'.format(k) for k in range(dlen)]
-            p_emb_paths = [
-                os.path.join(p_emb_dir, pid + '.npz') for pid in pids
-                if os.path.exists(os.path.join(p_emb_dir, pid + '.npz'))
-            ]
-            p_json_paths = [
-                os.path.join(p_emb_dir, pid + '.json') for pid in pids
-                if os.path.exists(os.path.join(p_emb_dir, pid + '.json'))
-            ]
-            assert len(p_emb_paths) == len(p_json_paths)
+        # TODO: could do answer aggregation here (strength-based)
+        # Get top scored phrase from a single document
+        scores = q_emb.dot(p_emb.T)
+        if sparse:
+            scores = scores.toarray()
+        max_idxs = np.argmax(scores, axis=1)
+        max_scores = np.max(scores, axis=1)
+        assert len(max_scores) == len(qlist) == len(max_idxs)
 
-            # TODO: Will be removed
-            if len(p_emb_paths) < dlen:
-                continue
-
-            # Phrase embedding stack
-            p_embs = [load(emb_path) for emb_path in p_emb_paths]
-            p_embs = [emb for emb in p_embs if len(emb.shape) > 0]
-            if len(p_embs) == 0:
-                continue
-            p_emb = stack(p_embs)
-            
-            # Phrase json
-            phrases = []
-            for json_path in p_json_paths:
-                with open(json_path, 'r') as fp:
-                    phrases += json.load(fp)
-            assert len(phrases) == p_emb.shape[0]
-
-            # TODO: could do answer aggregation here (strength-based)
-            # Get top scored phrase from a single document
-            scores = np.squeeze(p_emb.dot(q_emb.T), axis=1)
-            if sparse:
-                scores = scores.toarray()
-            max_idx = np.argmax(scores)
-            d_pred_phrases.append(phrases[max_idx])
-            d_pred_scores.append(scores[max_idx] + dscore*tfidf_weight)
-
-            if n_docs + 1 >= max_n_docs:
-                break
-
-        assert len(d_pred_phrases) == len(d_pred_scores)
-        if len(d_pred_scores) > 0:
-            mmax_idx = np.argmax(d_pred_scores) 
-            predictions[qid] = d_pred_phrases[mmax_idx]
-        else:
-            predictions[qid] = ''
+        # Update prediction dict
+        for max_score, max_idx, qitem in zip(max_scores, max_idxs, qlist):
+            qid, qd_score = qitem
+            if qid not in predictions:
+                predictions[qid] = ['', -1e+9]
+            new_cand = [phrases[max_idx], max_score + qd_score*tfidf_weight]
+            predictions[qid] = predictions[qid] if predictions[qid][1] > \
+                new_cand[1] else new_cand
 
     return predictions
 
@@ -109,9 +114,10 @@ def merge_tfidf(p_emb_dir, q_emb_dir, q2d_path, tfidf_weight, sparse,
 if __name__ == '__main__':
     squad_expected_version = '1.1'
     parser = argparse.ArgumentParser(description='script for appending tf-idf')
-    parser.add_argument('q2d_path', help='Dataset file path')
     parser.add_argument('p_emb_dir', help='Phrase embedding directory')
     parser.add_argument('q_emb_dir', help='Question embedding directory')
+    parser.add_argument('d2q_path', help='Doc to que mapping file path')
+    parser.add_argument('context_path', help='Context file directory')
     parser.add_argument('pred_path', help='Prediction json file path')
     parser.add_argument('--max-n-docs', type=int, default=10)
     parser.add_argument('--sparse', default=False, action='store_true',

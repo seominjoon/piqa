@@ -59,7 +59,7 @@ if __name__ == '__main__':
     db = retriever.DocDB(db_path=args.db_path)
 
     # Make q2d or load
-    if not os.path.exists('results/q2d_30.json'):
+    if not os.path.exists('results/q2d_10.json'):
         ranker = retriever.get_class('tfidf')(
             tfidf_path=args.retriever_path,
             strict=False
@@ -68,6 +68,7 @@ if __name__ == '__main__':
 
         # Question to doc mapping
         q2d = {}
+        d2q = {}
         for article in tqdm(squad['data']):
             for para in article['paragraphs']:
                 for qas in para['qas']:
@@ -78,11 +79,22 @@ if __name__ == '__main__':
                     )[0]
                     doc_len = [len(list(_split_doc(db.get_doc_text(doc)))[1:])
                                for doc in ranked[0]]
+
+                    # q2d mapping
                     q2d[qas['id']] = [ranked[0], ranked[1].tolist(), doc_len]
+
+                    # d2q mapping
+                    for did, dscore, dlen in zip(ranked[0], ranked[1].tolist(),
+                                                 doc_len):
+                        if did not in d2q:
+                            d2q[did] = {'length': dlen, 'qids': []}
+                        d2q[did]['qids'].append(tuple([qas['id'], dscore]))
 
         # Save as file
         with open('q2d_{}.json'.format(args.n_docs), 'w') as f:
             json.dump(q2d, f)
+        with open('d2q_{}.json'.format(args.n_docs), 'w') as f:
+            json.dump(d2q, f)
             exit()
     else:
         # Load saved file
