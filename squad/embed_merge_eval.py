@@ -100,21 +100,18 @@ def merge(nsml, draft, sparse, context_path,
     return [merge_cmd]
 
 
-def aggregate(pred_dir, **kwargs):
-    agg_cmd = "python aggregate_pred.py --pred_dir {} --with_score".format(
+def aggregate(squad_path, pred_dir, **kwargs):
+    agg1_cmd = "python aggregate_pred.py --pred_dir {}".format(
         pred_dir
     )
-    return [agg_cmd]
-    
-
-# Not used
-def evaluate(squad_path, pred_path, **kwargs):
-    eval_cmd = "python evaluate.py {} {}".format(
-        squad_path,
-        pred_path
+    eval_cmd = "python evaluate.py {} new_pred.json".format(
+        squad_path
     )
-    return [eval_cmd]
-
+    agg2_cmd = "python aggregate_pred.py --pred_dir {} --with_score".format(
+        pred_dir
+    )
+    return [agg1_cmd, eval_cmd, agg2_cmd]
+    
 
 # Predefined paths (for locals)
 data_home = os.path.join(os.path.expanduser('~'), 'data/squad')
@@ -186,16 +183,16 @@ if __name__ == '__main__':
     if args.nsml:
         from nsml import DATASET_PATH
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
-        # args.load_dir = 'piqateam/minjoon_squad_2/34' # (baseline)
-        # args.iteration = '35501'
-        args.load_dir = 'piqateam/minjoon_squad_2/36' # (sparse)
-        args.iteration = '28501'
+        args.load_dir = 'piqateam/minjoon_squad_2/34' # (baseline)
+        args.iteration = '35501'
+        # args.load_dir = 'piqateam/minjoon_squad_2/36' # (sparse)
+        # args.iteration = '28501'
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
         args.d2q_path = os.path.join(nsml_data_home, 'd2q_30.json')
         args.context_paths = [os.path.join(nsml_data_home,
-            'dev_contexts/top30/dev-v1.1-top30docs-{}.json'.format(k)) 
+            'top30/dev-v1.1-top30docs-{}.json'.format(k)) 
             for k in range(100)]
         args.question_path = os.path.join(nsml_data_home,
             'dev-v1.1-question.json')
