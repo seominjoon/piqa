@@ -35,7 +35,7 @@ class ArgumentParser(argparse.ArgumentParser):
         # Training arguments
         self.add_argument('--epochs', type=int, default=20)
         self.add_argument('--train_steps', type=int, default=0)
-        self.add_argument('--eval_steps', type=int, default=1000)
+        self.add_argument('--eval_steps', type=int, default=10000)
         self.add_argument('--eval_save_period', type=int, default=500)
         self.add_argument('--report_period', type=int, default=100)
 

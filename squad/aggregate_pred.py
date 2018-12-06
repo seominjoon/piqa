@@ -14,6 +14,8 @@ if __name__ == '__main__':
     # Load prediction files
     preds = []
     for path in os.listdir(args.pred_dir):
+        if os.path.isdir(os.path.join(args.pred_dir, path)):
+            continue
         with open(os.path.join(args.pred_dir, path)) as prediction_file:
             preds.append(json.load(prediction_file))
         print('Aggregating {} ...'.format(path))
