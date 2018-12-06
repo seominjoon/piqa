@@ -16,7 +16,7 @@ from pprint import pprint
 def run_commands(cmds):
     start = time.time()
     for cmd_idx, cmd in enumerate(cmds):
-        print('Command #{}\n{}'.format(cmd_idx, cmd))
+        print('\nCommand #{}\n{}'.format(cmd_idx, cmd))
         status = subprocess.call(cmd.split(' '))
         if status != 0:
             print('Failure with exit code: {}'.format(status))
@@ -202,11 +202,12 @@ if __name__ == '__main__':
     context_emb_dirs = []
     pred_paths = []
     for path_idx in range(len(args.context_paths)):
+        save_idx = path_idx + num_docs * args.cluster_idx
         context_emb_dirs.append(
-            os.path.join(args.context_emb_base, str(path_idx))
+            os.path.join(args.context_emb_base, str(save_idx))
         )
         pred_paths.append(
-            os.path.join(args.pred_dir, 'pred_{}.json'.format(path_idx))
+            os.path.join(args.pred_dir, 'pred_{}.json'.format(save_idx))
         )
     if not os.path.exists(args.pred_dir):
         os.makedirs(args.pred_dir)
