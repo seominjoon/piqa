@@ -15,6 +15,7 @@ class Processor(dev.Processor):
         self.depths['eval_context_glove_idxs'] = 2
         self.depths['eval_context_char_idxs'] = 3
         self.max_eval_par = kwargs['max_eval_par']
+        self.par_to_doc = kwargs['par_to_doc']
         super(Processor, self).__init__(**kwargs)
 
     # Override to process 'eval_context'
@@ -75,8 +76,14 @@ class Processor(dev.Processor):
             prepro_example['eval_context_glove_idxs'] = []
             prepro_example['eval_context_char_idxs'] = []
 
+            # if we use doc as unit, change max cut
+            if self.par_to_doc:
+                pass
+            else:
+                par_cut_idx = self.max_eval_par
+
             for new_idx, new_context in enumerate(example['eval_context']):
-                if new_idx == self.max_eval_par:
+                if new_idx == par_cut_idx:
                     break
                 new_context_spans = self._word_tokenize(new_context)
                 new_context_words = tuple(new_context[span[0]:span[1]] for span in new_context_spans)

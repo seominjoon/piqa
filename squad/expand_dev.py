@@ -109,6 +109,8 @@ if __name__ == '__main__':
                         help='Random seed (for reproducibility)')
     parser.add_argument('--find-docs', default=False, action='store_true',
                         help='True to find closest docs') 
+    parser.add_argument('--query-type', type=str, default='context',
+                        help='context|question')
     parser.add_argument('--mode', type=str, default='large', 
                         help='large|open')
     parser.add_argument('--par-open', default=False, action='store_true',
@@ -121,6 +123,7 @@ if __name__ == '__main__':
     # Print important arguments
     if args.find_docs:
         print('Finding closest docs using DocumentRetriever')
+        print('Query type: {}'.format(args.query_type))
         print('# of closest docs: {}'.format(args.n_docs))
     else:
         print('Expanding SQuAD development set')
@@ -141,7 +144,12 @@ if __name__ == '__main__':
     if args.find_docs:
 
         # Load SQuAD data
-        dev_data = _load_squad_without_questions(args.data_path)
+        if args.query_type == 'context':
+            dev_data = _load_squad_without_questions(args.data_path)
+        else:
+            from baseline.file_interface import _load_squad
+            dev_data = _load_squad(args.data_path)
+        assert args.query_type in dev_data[0]
         print('Data from {} with size {}'.format(args.data_path, len(dev_data)))
 
         # Test retriever
@@ -157,7 +165,7 @@ if __name__ == '__main__':
         # Iterate SQuAD data and retrieve closest docs
         batch_size = 4
         for dev_idx in tqdm(range(0, len(dev_data), batch_size)):
-            batch_context = [ex['context'] 
+            batch_context = [ex[args.query_type] 
                              for ex in dev_data[dev_idx:dev_idx+batch_size]]
             closest_docs = ranker.batch_closest_docs(batch_context, 
                                                      k=args.n_docs)
@@ -166,7 +174,8 @@ if __name__ == '__main__':
                     (closest_docs[i][0], list(closest_docs[i][1]))
 
         # Check integrity and save
-        with open('dev-v1.1-top{}.json'.format(args.n_docs), 'w') as f:
+        with open('dev-v1.1-top{}-{}.json'.format(
+            args.n_docs, args.query_type), 'w') as f:
             json.dump(dev_data, f)
         print('Getting top {} similar docs done'.format(args.n_docs))
         exit(0)
@@ -175,7 +184,8 @@ if __name__ == '__main__':
     db = retriever.DocDB(db_path=args.db_path)
 
     # Read result file, which must contain 'closest_docs_n' key
-    with open('results/dev-v1.1-top{}.json'.format(args.n_docs), 'r') as f:
+    with open('results/dev-v1.1-top{}-{}.json'.format(
+        args.n_docs, args.query_type), 'r') as f:
         squad = json.load(f)
         assert len(squad) > 0
         assert 'closest_docs_{}'.format(args.n_docs) in squad[0].keys()
@@ -211,7 +221,8 @@ if __name__ == '__main__':
 
                 # Skip short text
                 if all([len(par) < 500 for par in _split_doc(text)]):
-                    continue
+                    if not (args.query_type == 'question'):
+                        continue
 
                 for split_idx, split in enumerate(_split_doc(text)):
                     if split_idx == 0: # skip titles
@@ -219,17 +230,20 @@ if __name__ == '__main__':
                         continue
 
                     # For SQuAD doc, we already added it.
-                    if split_title == title or curr_title == title:
+                    if (split_title == title or curr_title == title) and \
+                        not (args.query_type == 'question'):
                         doc_counter -= 1
                         break
 
                     # Or, use what we've retrieved
                     else:
-                        if len(split) >= 500:
-                            eval_context.append(split)
-                            eval_context_src.append(split_title)
-                            if not args.par_open:
-                                open_context.update([split])
+                        if not (args.query_type == 'question'):
+                            if len(split) < 500:
+                                continue
+                        eval_context.append(split)
+                        eval_context_src.append(split_title)
+                        if not args.par_open:
+                            open_context.update([split])
 
                 doc_counter += 1
                 if doc_counter == args.n_docs_max:
@@ -239,13 +253,14 @@ if __name__ == '__main__':
             assert len(eval_context) == len(eval_context_src)
         print('Retrieving closest doc texts done')
 
-    # Load retriever
-    ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
-                                          strict=False)
-    print('Retriever loaded from {}'.format(args.retriever_path))
+    if not (args.query_type == 'question'):
+        # Load retriever
+        ranker = retriever.get_class('tfidf')(tfidf_path=args.retriever_path,
+                                              strict=False)
+        print('Retriever loaded from {}'.format(args.retriever_path))
 
     # Sort and filter paragraphs using TF-IDF
-    if args.tfidf_sort:
+    if args.tfidf_sort and not (args.query_type == 'question'):
         from scipy.sparse import vstack
 
         for item in tqdm(squad):
@@ -284,7 +299,7 @@ if __name__ == '__main__':
                 item['eval_context_src'] = selected_srcs[:]
 
     # Or, we just use random docs
-    else:
+    elif not args.tfidf_sort and not (args.query_type == 'question'):
         for item in tqdm(squad):
             random_docs = np.random.randint(len(ranker.doc_dict[0]), 
                                             size=args.n_pars)

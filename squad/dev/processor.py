@@ -81,7 +81,7 @@ class Processor(baseline.Processor):
 
     def postprocess_context(self, example, context_output):
         pos_tuple, dense, sparse_, fsp = context_output
-        out = dense.cpu().numpy()
+        out = dense.cpu().numpy() if dense is not None else None
         context = example['context']
         context_spans = example['context_spans']
         phrases = tuple(get_pred(context, context_spans, yp1, yp2) for yp1, yp2 in pos_tuple)
