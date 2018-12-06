@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
                 tfidf_weight, sparse, 
-                max_n_docs, cuda, **kwargs):
+                top_n_docs, cuda, **kwargs):
 
     # Load d2q mapping, and context file
     with open(context_path, 'rb') as f:
@@ -31,8 +31,10 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
             if '_'.join(did.split(' ')) in doc_set:
                 new_d2q[did] = val
         d2q = new_d2q
-        num_q = sum([len(q['qids']) for q in d2q.values()])
-        uq = [[k[0] for k in q['qids']] for q in d2q.values()]
+        num_q = sum([len([v for v in q['qids'] if v[2] < top_n_docs]) 
+                     for q in d2q.values()])
+        uq = [[k[0] for k in [v for v in q['qids'] if v[2] < top_n_docs]] 
+              for q in d2q.values()]
         uq = set([q for ql in uq for q in ql])
 
     print('Processing outputs of file: {}'.format(context_path))
@@ -48,10 +50,12 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
         load = lambda x: load_npz(x)
         stack = vstack
 
+    num_q = 0
     predictions = {}
     for did, val in tqdm(d2q.items()):
-        qlist = val['qids']
         dlen = val['length']
+        qlist = [v for v in val['qids'] if v[2] < top_n_docs]
+        num_q += len(qlist)
 
         # Load question embedding vectors [N X D]
         q_embs = []
@@ -101,13 +105,15 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
 
         # Update prediction dict
         for max_score, max_idx, qitem in zip(max_scores, max_idxs, qlist):
-            qid, qd_score = qitem
+            qid, qd_score, q_rank = qitem
+            assert q_rank < top_n_docs
             if qid not in predictions:
                 predictions[qid] = ['', -1e+9]
             new_cand = [phrases[max_idx], max_score + qd_score*tfidf_weight]
             predictions[qid] = predictions[qid] if predictions[qid][1] > \
                 new_cand[1] else new_cand
 
+    print('Number of questions processed: {}'.format(num_q))
     return predictions
 
 
@@ -119,7 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('d2q_path', help='Doc to que mapping file path')
     parser.add_argument('context_path', help='Context file directory')
     parser.add_argument('pred_path', help='Prediction json file path')
-    parser.add_argument('--max-n-docs', type=int, default=10)
+    parser.add_argument('--top-n-docs', type=int, default=10)
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='If stored phrase vecs are sparse vec or not')
     parser.add_argument('--tfidf-weight', type=float, default=0,
