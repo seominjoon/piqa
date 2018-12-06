@@ -55,6 +55,8 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
     for did, val in tqdm(d2q.items()):
         dlen = val['length']
         qlist = [v for v in val['qids'] if v[2] < top_n_docs]
+        if len(qlist) == 0:
+            continue
         num_q += len(qlist)
 
         # Load question embedding vectors [N X D]
@@ -65,7 +67,7 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
         for q_emb_path in q_emb_paths:
             assert os.path.exists(q_emb_path)
             q_embs.append(load(q_emb_path))
-        q_emb = stack(q_embs)
+        q_emb = stack(q_embs) if len(q_embs) > 1 else q_embs[0]
 
         # Load emb/json for each paragraph
         did_u = '_'.join(did.split(' '))
@@ -85,7 +87,7 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
         p_embs = [emb for emb in p_embs if len(emb.shape) > 0]
         if len(p_embs) == 0:
             continue
-        p_emb = stack(p_embs)
+        p_emb = stack(p_embs) if len(p_embs) > 1 else p_embs[0]
         
         # Phrase json
         phrases = []

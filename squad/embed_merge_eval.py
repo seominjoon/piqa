@@ -20,16 +20,17 @@ def run_commands(cmds):
         status = subprocess.call(cmd.split(' '))
         if status != 0:
             print('Failure with exit code: {}'.format(status))
-            elapsed = str(datetime.timedelta(seconds=time.time()-start))
-            return elapsed
-    return elapsed
+            return str(datetime.timedelta(seconds=time.time()-start))
+    return str(datetime.timedelta(seconds=time.time()-start))
+
 
 def embed_context(nsml, draft, load_dir, iteration,
-                  context_paths, context_emb_dir,
+                  context_paths, context_emb_dirs, pred_paths,
                   no_filter, sparse, batch_size, **kwargs):
 
     cmds = []
-    for context_path in context_paths:
+    for context_path, context_emb_dir, pred_path in zip(
+        context_paths, context_emb_dirs, pred_paths):
         c_embed_cmd = ("python main.py dev --mode embed_context{}{}{}" +
                        " --load_dir {} --iteration {} --test_path {}" +
                        " --context_emb_dir {}" +
@@ -47,6 +48,16 @@ def embed_context(nsml, draft, load_dir, iteration,
             batch_size
         )
         cmds.append(c_embed_cmd)
+        merge_cmd = merge(
+            nsml=nsml,
+            draft=draft,
+            sparse=sparse,
+            context_path=context_path,
+            context_emb_dir=context_emb_dir,
+            pred_path=pred_path,
+            **kwargs
+        )
+        cmds += merge_cmd
 
     return cmds
 
@@ -72,36 +83,46 @@ def embed_question(nsml, draft, load_dir, iteration,
     return [q_embed_cmd]
 
 
-def merge_eval(nsml, draft, sparse, squad_path,
-               q2d_path, context_emb_dir, question_emb_dir, pred_path,
-               tfidf_weight, **kwargs):
-    merge_cmd = ("python tfidf_merge.py {} {} {} {}" +
-                 " --tfidf-weight {}{}").format(
-        q2d_path,
+def merge(nsml, draft, sparse, context_path,
+          d2q_path, context_emb_dir, question_emb_dir, pred_path,
+          tfidf_weight, top_n_docs, **kwargs):
+    merge_cmd = ("python tfidf_merge.py {} {} {} {} {}" +
+                 " --tfidf-weight {} --top-n-docs {}{}").format(
         context_emb_dir,
         question_emb_dir,
+        d2q_path,
+        context_path,
         pred_path,
         tfidf_weight,
+        top_n_docs,
         ' --sparse' if sparse else ''
     )
+
+    return [merge_cmd]
+
+
+def aggregate():
+    pass
+
+
+def evaluate(squad_path, pred_path):
     eval_cmd = "python evaluate.py {} {}".format(
         squad_path,
         pred_path
     )
-
-    return [merge_cmd, eval_cmd]
+    return [eval_cmd]
 
 
 # Predefined paths (for locals)
 data_home = os.path.join(os.path.expanduser('~'), 'data/squad')
-CONTEXT_DIR = os.path.join(data_home, 'context_emb_10')
-QUESTION_DIR = os.path.join(data_home, 'question_emb_10')
+CONTEXT_BASE = os.path.join(data_home, 'context_emb_30')
+QUESTION_DIR = os.path.join(data_home, 'question_emb_30')
 SQUAD_PATH = os.path.join(data_home, 'dev-v1.1.json')
-Q2D_PATH = os.path.join(data_home, 'q2d_30.json')
+D2Q_PATH = os.path.join(data_home, 'd2q_30.json')
 QUESTION_PATH = os.path.join(data_home, 'dev-v1.1-question.json')
 CONTEXT_PATHS = [os.path.join(data_home,
-    'dev_contexts/top10/dev-v1.1-top10docs-{}.json'.format(k)) 
-    for k in range(1)]
+    'dev_contexts/top30/dev-v1.1-top30docs-{}.json'.format(k)) 
+    for k in range(100)]
 
 
 if __name__ == '__main__':
@@ -122,27 +143,30 @@ if __name__ == '__main__':
     # Mode
     parser.add_argument('--embed_c', default=False, action='store_true')
     parser.add_argument('--embed_q', default=False, action='store_true')
-    parser.add_argument('--merge', default=False, action='store_true')
+    parser.add_argument('--aggregate', default=False, action='store_true')
 
     # Controllable arguments
     parser.add_argument('--tfidf_weight', type=float, default=0.0,
                         help='tfidf concat weighting')
+    parser.add_argument('--top_n_docs', type=int, default=5,
+                        help='Number of documents to eval')
     parser.add_argument('--no_filter', default=False, action='store_true',
                         help='No filter (default=use)')
     parser.add_argument('--sparse', default=False, action='store_true',
                         help='Use sparse model (S) (default=false)')
-    parser.add_argument('--batch_size', type=str, default=64)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--cluster_idx', type=int, default=5, help='0~')
+    parser.add_argument('--cluster_split', type=int, default=50)
 
     # Dirs
-    parser.add_argument('--context_emb_dir', type=str, default=CONTEXT_DIR)
+    parser.add_argument('--context_emb_base', type=str, default=CONTEXT_BASE)
     parser.add_argument('--question_emb_dir', type=str, default=QUESTION_DIR)
 
     # Paths
     parser.add_argument('--squad_path', type=str, default=SQUAD_PATH)
-    parser.add_argument('--q2d_path', type=str, default=Q2D_PATH)
+    parser.add_argument('--d2q_path', type=str, default=D2Q_PATH)
     parser.add_argument('--context_paths', type=list, default=CONTEXT_PATHS)
     parser.add_argument('--question_path', type=str, default=QUESTION_PATH)
-    parser.add_argument('--pred_path', type=str, default='./test_pred.json')
  
     args = parser.parse_args()
 
@@ -151,7 +175,7 @@ if __name__ == '__main__':
     if args.draft:
         args.load_dir = '/tmp/piqa/squad/save'
         args.iteration = '1'
-        args.context_emb_dir = '/tmp/piqa/squad/context_emb'
+        args.context_emb_base = '/tmp/piqa/squad/context_emb'
         args.question_emb_dir = '/tmp/piqa/squad/question_emb'
 
     if args.nsml:
@@ -161,21 +185,32 @@ if __name__ == '__main__':
         # args.iteration = '35501'
         args.load_dir = 'piqateam/minjoon_squad_2/36' # (sparse)
         args.iteration = '28501'
-        args.context_emb_dir = './context_emb'
+        args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
-        args.q2d_path = os.path.join(nsml_data_home, 'q2d_30.json')
+        args.d2q_path = os.path.join(nsml_data_home, 'd2q_30.json')
         args.context_paths = [os.path.join(nsml_data_home,
-            'dev_contexts/top10/dev-v1.1-top10docs-{}.json'.format(k)) 
+            'dev_contexts/top30/dev-v1.1-top30docs-{}.json'.format(k)) 
             for k in range(100)]
         args.question_path = os.path.join(nsml_data_home,
             'dev-v1.1-question.json')
 
+    # Change context_paths according to cluster idx, then edit dirs/paths
+    num_docs = len(args.context_paths) // args.cluster_split
+    args.context_paths = args.context_paths[
+        num_docs*args.cluster_idx:num_docs*(args.cluster_idx+1)
+    ]
+    context_emb_dirs = []
+    pred_paths = []
+    for path_idx in range(len(args.context_paths)):
+        context_emb_dirs.append(
+            os.path.join(args.context_emb_base, str(path_idx))
+        )
+        pred_paths.append('./test_pred_{}.json'.format(path_idx))
     pprint(args.__dict__)
 
     # Path check
     for key, val in args.__dict__.items():
-        if key == 'pred_path': continue
         if 'paths' in key:
             for path in val:
                 assert os.path.exists(path), '{} does not exist'.format(path)
@@ -183,17 +218,20 @@ if __name__ == '__main__':
             assert os.path.exists(val), '{} does not exist'.format(val)
 
     # Get commands based on the mode
-    if args.embed_c:
-        cmds = embed_context(**args.__dict__)
-        elapsed = run_commands(cmds)
-        print('context embed: {}'.format(elapsed))
-
     if args.embed_q:
         cmds = embed_question(**args.__dict__)
         elapsed = run_commands(cmds)
         print('question embed: {}'.format(elapsed))
 
-    if args.merge:
-        cmds = merge_eval(**args.__dict__)
+    if args.embed_c:
+        cmds = embed_context(
+            context_emb_dirs=context_emb_dirs,
+            pred_paths=pred_paths,
+            **args.__dict__
+        )
         elapsed = run_commands(cmds)
-        print('merge + eval: {}'.format(elapsed))
+        print('context embed + merge: {}'.format(elapsed))
+
+    if args.aggregate:
+        raise NotImplementedError()
+
