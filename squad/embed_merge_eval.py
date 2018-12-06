@@ -16,7 +16,7 @@ from pprint import pprint
 def run_commands(cmds):
     start = time.time()
     for cmd_idx, cmd in enumerate(cmds):
-        print('Command #{}\n{}'.format(cmd_idx, cmd))
+        print('\nCommand #{}\n{}'.format(cmd_idx, cmd))
         status = subprocess.call(cmd.split(' '))
         if status != 0:
             print('Failure with exit code: {}'.format(status))
