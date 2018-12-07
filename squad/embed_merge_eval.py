@@ -20,7 +20,7 @@ def run_commands(cmds):
         status = subprocess.call(cmd.split(' '))
         if status != 0:
             print('Failure with exit code: {}'.format(status))
-            return str(datetime.timedelta(seconds=time.time()-start))
+            # return str(datetime.timedelta(seconds=time.time()-start))
     return str(datetime.timedelta(seconds=time.time()-start))
 
 
