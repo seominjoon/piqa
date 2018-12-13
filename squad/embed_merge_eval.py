@@ -138,6 +138,11 @@ if __name__ == '__main__':
                         default='35501')
                         # default='28501')
 
+    # NSML reserved
+    parser.add_argument('--mode', type=str, default='fork')
+    parser.add_argument('--pause', type=int, default=1)
+    parser.add_argument('--checkpoint', type=str, default=None)
+
     # Mode
     parser.add_argument('--embed_c', default=False, action='store_true')
     parser.add_argument('--embed_q', default=False, action='store_true')
