@@ -15,7 +15,26 @@ import random
 from tqdm import tqdm
 from drqa import retriever, tokenizers
 from drqa.retriever import utils
-from expand_dev import _split_doc
+
+
+# Copeid from DrQA/drqa/pipeline/drqa.py
+def _split_doc(doc):
+    """Given a doc, split it into chunks (by paragraph)."""
+    curr = []
+    curr_len = 0
+    for split in regex.split(r'\n+', doc):
+        split = split.strip()
+        if len(split) == 0:
+            continue
+        # Maybe group paragraphs together until we hit a length limit
+        if len(curr) > 0 and curr_len + len(split) > 0:
+            yield ' '.join(curr)
+            curr = []
+            curr_len = 0
+        curr.append(split)
+        curr_len += len(split)
+    if len(curr) > 0:
+        yield ' '.join(curr)
 
 
 # Predefined paths

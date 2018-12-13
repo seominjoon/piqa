@@ -14,7 +14,6 @@ import torch
 from scipy.sparse import csr_matrix, hstack, vstack, save_npz, load_npz
 from tqdm import tqdm
 
-# TODO: prediction_0.json merge script
 
 def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
                 tfidf_weight, sparse, 
