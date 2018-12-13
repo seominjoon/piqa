@@ -68,7 +68,8 @@ def embed_context(nsml, draft, load_dir, iteration,
             0.0 if no_filter else 0.8,
             batch_size
         )
-        cmds.append(c_embed_cmd)
+        if not kwargs['skip_embed']:
+            cmds.append(c_embed_cmd)
         merge_cmd = merge(
             nsml=nsml,
             draft=draft,
@@ -146,6 +147,7 @@ if __name__ == '__main__':
     # Mode
     parser.add_argument('--embed_c', default=False, action='store_true')
     parser.add_argument('--embed_q', default=False, action='store_true')
+    parser.add_argument('--skip_embed', default=False, action='store_true')
 
     # Controllable arguments
     parser.add_argument('--tfidf_weight', type=float, default=0.0,
@@ -227,7 +229,7 @@ if __name__ == '__main__':
             assert os.path.exists(val), '{} does not exist'.format(val)
 
     # Get commands based on the mode
-    if args.embed_q:
+    if args.embed_q and not args.skip_embed:
         cmds = embed_question(**args.__dict__)
         elapsed = run_commands(cmds)
         print('question embed: {}'.format(elapsed))
