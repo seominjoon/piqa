@@ -179,6 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('question_emb_dir', help='Question embedding directory')
     parser.add_argument('que_tfidf_dir', help='Question tfidf directory')
     parser.add_argument('pred_path', help='Prediction json file path')
+    parser.add_argument('--iteration', type=str, default='1')
     parser.add_argument('--mode', type=str, default='E', help='E|P')
     parser.add_argument('--tfidf-weight', type=float, default=1e+0,
                         help='TF-IDF vector weight')
@@ -199,8 +200,17 @@ if __name__ == '__main__':
     from merge import get_c2q
     c2q = get_c2q(dataset)
 
-    # Merge using tfidf
-    predictions = concat_merge_tfidf(c2q, **args.__dict__)
+    # delete following lines for nsml-free implementation
+    import nsml
+    if nsml.IS_ON_NSML:
+        def load_fn(filename, **kwargs):
+            args.context_emb_dir = filename
+            args.question_emb_dir = filename
+            concat_merge_tfidf(c2q, **args.__dict__)
+        nsml.load('%s_embed' % args.iteration, load_fn=load_fn)
+    else:
+        # Merge using tfidf
+        predictions = concat_merge_tfidf(c2q, **args.__dict__)
 
     with open(args.pred_path, 'w') as fp:
         json.dump(predictions, fp)
