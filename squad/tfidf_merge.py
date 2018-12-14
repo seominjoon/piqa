@@ -131,11 +131,22 @@ if __name__ == '__main__':
                         help='If stored phrase vecs are sparse vec or not')
     parser.add_argument('--tfidf-weight', type=float, default=0,
                         help='TF-IDF vector weight')
+    parser.add_argument('--iteration', type=str, default='1')
     parser.add_argument('--cuda', default=False, action='store_true',
                         help='process np matrix with torch.cuda')
     args = parser.parse_args()
 
-    # Merge using tfidf
-    predictions = merge_tfidf(**args.__dict__)
+    # delete following lines for nsml-free implementation
+    import nsml
+    if nsml.IS_ON_NSML:
+        def load_fn(filename, **kwargs):
+            args.context_emb_dir = filename
+            args.question_emb_dir = filename
+            predictions = merge_tfidf(**args.__dict__)
+        nsml.load('%s_embed' % args.iteration, load_fn=load_fn)
+    else:
+        # Merge using tfidf
+        predictions = merge_tfidf(**args.__dict__)
+
     with open(args.pred_path, 'w') as fp:
         json.dump(predictions, fp)

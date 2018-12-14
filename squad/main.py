@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 from collections import OrderedDict
@@ -420,6 +421,18 @@ def serve(args):
             IOLoop.instance().start()
 
 
+# Delete the following function for nsml-free implementation
+def embed_(args):
+    def save(filename, **kwargs):
+        if not os.path.exists(filename):
+            os.makedirs(filename)
+        args.context_emb_dir = filename
+        args.question_emb_dir = filename
+        embed(args)
+    import nsml
+    nsml.save('%s_embed' % args.iteration, save_fn=save)
+
+
 def main():
     argument_parser = ArgumentParser()
     argument_parser.add_arguments()
@@ -438,7 +451,12 @@ def main():
     elif args.mode == 'test':
         test(args)
     elif args.mode == 'embed' or args.mode == 'embed_context' or args.mode == 'embed_question':
-        embed(args)
+        # Delete following four lines for nsml-free implementation
+        from nsml import IS_ON_NSML
+        if IS_ON_NSML:
+            embed_(args)
+        else:
+            embed(args)
     elif args.mode.startswith('serve'):
         serve(args)
     else:
@@ -460,7 +478,7 @@ if __name__ == "__main__":
     assert issubclass(Model, base.Model)
     assert issubclass(Loss, base.Loss)
 
-    # Delete the following four lines for nsml-free implementation
+    # Delete the following lines for nsml-free implementation
     from nsml import IS_ON_NSML
     if IS_ON_NSML:
         nfi = importlib.import_module('%s.nsml_file_interface' % sys.argv[1])
