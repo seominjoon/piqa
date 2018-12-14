@@ -147,7 +147,9 @@ if __name__ == '__main__':
         nsml.bind(load=p_load_fn)
         p_load_path = '%s_embed_%s' % (
             args.iteration,
-            os.path.splitext(os.path.basename(args.context_path))[0]
+            os.path.splitext(os.path.basename(args.context_path))[0].replace(
+                '.', '_'
+            )
         )
         nsml.load(p_load_path, session=args.embed_session)
 
