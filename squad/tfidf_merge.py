@@ -146,6 +146,8 @@ if __name__ == '__main__':
             args.p_emb_dir = filename
             args.q_emb_dir = filename
             predictions = merge_tfidf(**args.__dict__)
+            with open(args.pred_path, 'w') as fp:
+                json.dump(predictions, fp)
         nsml.bind(load=load_fn)
         nsml.load(
             '%s_embed' % args.iteration,
@@ -154,6 +156,5 @@ if __name__ == '__main__':
     else:
         # Merge using tfidf
         predictions = merge_tfidf(**args.__dict__)
-
-    with open(args.pred_path, 'w') as fp:
-        json.dump(predictions, fp)
+        with open(args.pred_path, 'w') as fp:
+            json.dump(predictions, fp)
