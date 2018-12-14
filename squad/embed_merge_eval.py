@@ -198,7 +198,7 @@ if __name__ == '__main__':
         # args.iteration = '28501'
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
-        args.embed_session = 'piqateam/squad_piqa_181206/35'
+        args.embed_session = 'piqateam/squad_piqa_181206/43'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
         args.d2q_path = os.path.join(nsml_data_home, 'd2q_30.json')
         args.context_paths = [os.path.join(nsml_data_home,
