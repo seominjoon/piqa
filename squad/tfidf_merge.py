@@ -64,7 +64,7 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
             os.path.join(q_emb_dir, qid[0] + '.npz') for qid in qlist
         ]
         for q_emb_path in q_emb_paths:
-            assert os.path.exists(q_emb_path)
+            assert os.path.exists(q_emb_path), q_emb_path
             q_embs.append(load(q_emb_path))
         q_emb = stack(q_embs) if len(q_embs) > 1 else q_embs[0]
 
@@ -142,8 +142,7 @@ if __name__ == '__main__':
     import nsml
     if nsml.IS_ON_NSML:
         def load_fn(filename, **kwargs):
-            print('loaded')
-            print(filename)
+            print('load embed in', filename)
             args.p_emb_dir = filename
             args.q_emb_dir = filename
             predictions = merge_tfidf(**args.__dict__)
