@@ -85,6 +85,16 @@ if __name__ == '__main__':
         )
         print('Retriever loaded from {}'.format(args.retriever_path))
 
+        # Latency testing
+        print('Latency Testing')
+        import scipy
+        nq = 10
+        spvec_dim = 16777216
+        niter = 1000
+        for _ in tqdm(range(niter)):
+            queries = scipy.sparse.rand(nq, spvec_dim, density=1e-6).tocsr()
+            results = queries * ranker.doc_mat
+
         # Question to doc mapping
         q2d = {}
         d2q = {}

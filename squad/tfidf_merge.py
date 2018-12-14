@@ -126,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('d2q_path', help='Doc to que mapping file path')
     parser.add_argument('context_path', help='Context file directory')
     parser.add_argument('pred_path', help='Prediction json file path')
-    parser.add_argument('embed_session', 
+    parser.add_argument('--embed_session', type=str, default=None,
                         help='Session where embedding was saved')
     parser.add_argument('--top-n-docs', type=int, default=10)
     parser.add_argument('--sparse', default=False, action='store_true',
@@ -146,7 +146,7 @@ if __name__ == '__main__':
             args.question_emb_dir = filename
             predictions = merge_tfidf(**args.__dict__)
         nsml.load(
-            '%s_embed' % args.iteration, 
+            '%s_embed' % args.iteration,
             load_fn=load_fn,
             session=args.embed_session
         )

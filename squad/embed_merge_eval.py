@@ -84,16 +84,18 @@ def embed_context(nsml, draft, load_dir, iteration,
     return cmds
 
 
-def merge(nsml, draft, sparse, context_path,
+def merge(nsml, draft, sparse, context_path, embed_session,
           d2q_path, context_emb_dir, question_emb_dir, pred_path,
           tfidf_weight, top_n_docs, **kwargs):
     merge_cmd = ("python tfidf_merge.py {} {} {} {} {}" +
-                 " --tfidf-weight {} --top-n-docs {}{}").format(
+                 " --embed_session {} --tfidf-weight {}" +
+                 " --top-n-docs {}{}").format(
         context_emb_dir,
         question_emb_dir,
         d2q_path,
         context_path,
         pred_path,
+        embed_session,
         tfidf_weight,
         top_n_docs,
         ' --sparse' if sparse else ''
@@ -166,6 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('--context_emb_base', type=str, default=CONTEXT_BASE)
     parser.add_argument('--question_emb_dir', type=str, default=QUESTION_DIR)
     parser.add_argument('--pred_dir', type=str, default=PREDICTION_DIR)
+    parser.add_argument('--embed_session', type=str, default='None')
 
     # Paths
     parser.add_argument('--squad_path', type=str, default=SQUAD_PATH)
@@ -193,6 +196,7 @@ if __name__ == '__main__':
         # args.iteration = '28501'
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
+        args.embed_session = 'piqateam/session/number'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
         args.d2q_path = os.path.join(nsml_data_home, 'd2q_30.json')
         args.context_paths = [os.path.join(nsml_data_home,
