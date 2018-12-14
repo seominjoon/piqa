@@ -185,7 +185,7 @@ if __name__ == '__main__':
         args.question_emb_dir = '/tmp/piqa/squad/question_emb'
 
     if args.nsml:
-        from nsml import DATASET_PATH
+        from nsml import DATASET_PATH, NSML_NFS_OUTPUT
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
         args.load_dir = 'piqateam/minjoon_squad_2/34' # (baseline)
         args.iteration = '35501'
