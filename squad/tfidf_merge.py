@@ -149,7 +149,7 @@ if __name__ == '__main__':
             args.iteration,
             os.path.splitext(os.path.basename(args.context_path))[0]
         )
-        nsml.load(p_load_path, args.embed_session)
+        nsml.load(p_load_path, session=args.embed_session)
 
         def q_load_fn(filename, **kwargs):
             print('q load embed in', filename)
@@ -158,7 +158,7 @@ if __name__ == '__main__':
         q_load_path = '%s_embed_dev-v1_1-question' % (
             args.iteration
         )
-        nsml.load(q_load_path, args.embed_session)
+        nsml.load(q_load_path, session=args.embed_session)
 
     # Merge using tfidf
     predictions = merge_tfidf(**args.__dict__)
