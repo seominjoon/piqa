@@ -430,7 +430,8 @@ def embed_(args):
         args.question_emb_dir = filename
         embed(args)
     import nsml
-    nsml.save('%s_embed' % args.iteration, save_fn=save)
+    nsml.bind(save=save)
+    nsml.save('%s_embed' % args.iteration)
 
 
 def main():
