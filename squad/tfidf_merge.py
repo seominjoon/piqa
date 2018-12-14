@@ -142,8 +142,10 @@ if __name__ == '__main__':
     import nsml
     if nsml.IS_ON_NSML:
         def load_fn(filename, **kwargs):
-            args.context_emb_dir = filename
-            args.question_emb_dir = filename
+            print('loaded')
+            print(filename)
+            args.p_emb_dir = filename
+            args.q_emb_dir = filename
             predictions = merge_tfidf(**args.__dict__)
         nsml.bind(load=load_fn)
         nsml.load(
