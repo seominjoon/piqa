@@ -145,9 +145,9 @@ if __name__ == '__main__':
             args.context_emb_dir = filename
             args.question_emb_dir = filename
             predictions = merge_tfidf(**args.__dict__)
+        nsml.bind(load=load_fn)
         nsml.load(
             '%s_embed' % args.iteration,
-            load_fn=load_fn,
             session=args.embed_session
         )
     else:
