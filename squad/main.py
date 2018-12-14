@@ -432,7 +432,12 @@ def embed_(args):
         embed(args)
     import nsml
     nsml.bind(save=save)
-    nsml.save('%s_embed_%s' % (args.iteration, args.test_path))
+    save_path = '%s_embed_%s' % (
+        args.iteration,
+        os.path.splitext(os.path.basename(args.test_path))[0]
+    )
+    print(save_path)
+    nsml.save(save_path)
 
 
 def main():
