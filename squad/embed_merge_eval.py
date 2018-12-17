@@ -70,7 +70,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
         else:
             q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
                            " --load_dir {} --iteration {} --predict_file {}" +
-                           " --context_embed_dir {}" +
+                           " --question_embed_dir {}" +
 		           " --predict_batch_size 4" +
 			   " --parallel" +
                            " --max_answer_length 15 --span_threshold {}").format(
@@ -79,8 +79,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                 load_dir,
                 iteration,
                 question_path,
-                os.path.splitext(os.path.basename(context_path))[0].replace(
-                    '.', '_'),
+                'dev-v1_1-question',
                 -1e9 if no_filter else 3,
             )
 
