@@ -49,12 +49,12 @@ def embed_question(nsml, draft, load_dir, iteration,
             question_emb_dir
         )
     else:
-        q_embed_cmd = ("python bert/run_piqa3.py --do_embed_question{}{}" +
+        q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
                        " --load_dir {} --iteration {} --predict_file {}" +
-                       " --question_emb_dir {}" +
+                       " --question_embed_dir {}" +
                        " --bert_model_option 'base_uncased'" +
     	               " --max_answer_length 15" +
-                      " --span_threshold {} --batch_size {}").format(
+                       " --span_threshold {} --predict_batch_size {}").format(
            '' if nsml else ' --no_cuda',
            ' --draft' if draft else '',
            load_dir,
@@ -93,12 +93,12 @@ def embed_context(nsml, draft, load_dir, iteration,
                 batch_size
             )
         else:
-            c_embed_cmd = ("python bert/run_piqa3.py --do_embed_context{}{}" +
+            c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}" +
                            " --load_dir {} --iteration {} --predict_file {}" +
-                           " --context_emb_dir {}" +
+                           " --context_embed_dir {}" +
                            " --bert_model_option 'base_uncased'" +
-                           " --max_answer_length 15" +
-                           " --span_threshold {} --batch_size {}").format(
+                           " --max_answer_length 15 --span_threshold {}" +
+                           " --predict_batch_size {}").format(
                '' if nsml else ' --no_cuda',
                ' --draft' if draft else '',
                load_dir,
