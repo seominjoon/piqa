@@ -426,10 +426,30 @@ def embed_(args):
     def save(filename, **kwargs):
         if not os.path.exists(filename):
             os.makedirs(filename)
-        args.context_emb_dir = filename
-        args.question_emb_dir = filename
-        print('saved embed in', filename)
+        # args.context_emb_dir = filename # Instead, use zip
+        # args.question_emb_dir = filename
+        print('save embed in', args.context_emb_dir, args.question_emb_dir)
         embed(args)
+
+        import shutil
+        if args.mode == 'embed_context':
+            shutil.make_archive(
+                args.context_emb_dir,
+                'zip',
+                filename,
+                'context_embs'
+            )
+        elif args.mode == 'embed_question':
+            shutil.make_archive(
+                args.question_emb_dir,
+                'zip',
+                filename,
+                'question_embs'
+            )
+        else:
+            raise NotImplementedError
+        print('saved embed in', filename, os.listdir(filename))
+        
     import nsml
     nsml.bind(save=save)
     save_path = '%s_embed_%s' % (
