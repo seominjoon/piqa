@@ -13,14 +13,17 @@ import time, datetime
 from pprint import pprint
 
 
-def run_commands(cmds):
+def run_commands(cmds, **kwargs):
     start = time.time()
     for cmd_idx, cmd in enumerate(cmds):
         print('\nCommand #{}\n{}'.format(cmd_idx, cmd))
-        status = subprocess.call(cmd.split(' '))
-        if status != 0:
-            print('Failure with exit code: {}'.format(status))
-            # return str(datetime.timedelta(seconds=time.time()-start))
+        if kwargs['skip_embed']:
+            subprocess.Popen(cmd.split(' '))
+        else:
+            status = subprocess.call(cmd.split(' '))
+            if status != 0:
+                print('Failure with exit code: {}'.format(status))
+                # return str(datetime.timedelta(seconds=time.time()-start))
     return str(datetime.timedelta(seconds=time.time()-start))
 
 
@@ -106,7 +109,7 @@ def merge(nsml, draft, sparse, context_path, embed_session, iteration,
 
 
 def aggregate(squad_path, pred_dir, **kwargs):
-    agg_cmd = "python aggregate_pred.py --pred_dir {} --with_score".format(
+    agg_cmd = "python aggregate_pred.py {} --with_score".format(
         pred_dir
     )
     eval_cmd = "python partial_evaluate.py {} new_pred.json".format(
@@ -237,7 +240,7 @@ if __name__ == '__main__':
     # Get commands based on the mode
     if args.embed_q and not args.skip_embed:
         cmds = embed_question(**args.__dict__)
-        elapsed = run_commands(cmds)
+        elapsed = run_commands(cmds, **args.__dict__)
         print('question embed: {}'.format(elapsed))
 
     if args.embed_c:
@@ -247,6 +250,6 @@ if __name__ == '__main__':
             **args.__dict__
         )
         cmds += aggregate(**args.__dict__)
-        elapsed = run_commands(cmds)
+        elapsed = run_commands(cmds, **args.__dict__)
         print('context embed + merge + aggregate: {}'.format(elapsed))
 
