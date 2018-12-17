@@ -141,27 +141,13 @@ if __name__ == '__main__':
     # delete following lines for nsml-free implementation
     import nsml
     if nsml.IS_ON_NSML:
+        question_embs = {}
         def q_load_fn(filename, **kwargs):
+            global question_embs
             print('q load embed in', filename)
-            args.q_emb_dir = filename
-
-            def p_load_fn(filename, **kwargs):
-                print('p load embed in', filename)
-                args.p_emb_dir = filename
-
-                # Merge using tfidf
-                predictions = merge_tfidf(**args.__dict__)
-                with open(args.pred_path, 'w') as fp:
-                    json.dump(predictions, fp)
-
-            nsml.bind(load=p_load_fn)
-            p_load_path = '%s_embed_%s' % (
-                args.iteration,
-                os.path.splitext(os.path.basename(args.context_path))[0].replace(
-                    '.', '_'
-                )
-            )
-            nsml.load(p_load_path, session=args.embed_session)
+            for filename in os.listdir(filename):
+                print(filename)
+            exit(1)
 
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
@@ -169,8 +155,26 @@ if __name__ == '__main__':
         )
         nsml.load(q_load_path, session=args.embed_session)
 
+        def p_load_fn(filename, **kwargs):
+            print('p load embed in', filename)
+            args.p_emb_dir = filename
+
+            # Merge using tfidf
+            predictions = merge_tfidf(**args.__dict__)
+            with open(args.pred_path, 'w') as fp:
+                json.dump(predictions, fp)
+
+        nsml.bind(load=p_load_fn)
+        p_load_path = '%s_embed_%s' % (
+            args.iteration,
+            os.path.splitext(os.path.basename(args.context_path))[0].replace(
+                '.', '_'
+            )
+        )
+        nsml.load(p_load_path, session=args.embed_session)
 
     else:
+        raise NotImplementedError
         # Merge using tfidf
         predictions = merge_tfidf(**args.__dict__)
         with open(args.pred_path, 'w') as fp:
