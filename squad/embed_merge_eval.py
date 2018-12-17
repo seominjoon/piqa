@@ -87,7 +87,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
     return [q_embed_cmd]
 
 
-def embed_context(nsml, draft, load_dir, iteration,
+def embed_context(nsml, draft, load_dir, iteration, large,
                   context_paths, context_emb_dirs, pred_paths,
                   no_filter, sparse, bert, batch_size, **kwargs):
 
