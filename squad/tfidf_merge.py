@@ -136,20 +136,27 @@ if __name__ == '__main__':
     # delete following lines for nsml-free implementation
     import nsml, shutil
     if nsml.IS_ON_NSML:
+        if not os.path.exists(args.q_emb_dir):
+            os.mkdir(args.q_emb_dir)
+        if not os.path.exists(args.p_emb_dir):
+            os.makedirs(args.p_emb_dir, exist_ok=True)
         qid2emb = {}
         def q_load_fn(filename, **kwargs):
             global qid2emb
             shutil.unpack_archive(
-                os.path.join(filename, 'question_embs.zip'),
-                filename
+                filename,
+                args.q_emb_dir,
+                format='zip',
             )
             print('q load embed in', filename)
-            for qid in os.listdir(filename):
-                if os.path.isdir(os.path.join(filename, qid)):
+            for qid in os.listdir(args.q_emb_dir):
+                if os.path.isdir(os.path.join(args.q_emb_dir, qid)):
                     print('Skipping directory: {}'.format(qid))
                     continue
                 qid_base = os.path.splitext(qid)[0]
-                qid2emb[qid_base] = np.load(os.path.join(filename, qid))['arr_0']
+                qid2emb[qid_base] = np.load(
+                    os.path.join(args.q_emb_dir, qid)
+                )['arr_0']
 
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
@@ -159,8 +166,12 @@ if __name__ == '__main__':
 
         def p_load_fn(filename, **kwargs):
             global qid2emb
+            shutil.unpack_archive(
+                filename,
+                args.p_emb_dir,
+                format='zip',
+            )
             print('p load embed in', filename)
-            args.p_emb_dir = filename
 
             # Merge using tfidf
             predictions = merge_tfidf(qid2emb, **args.__dict__)
