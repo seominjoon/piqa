@@ -147,7 +147,8 @@ def aggregate(squad_path, pred_dir, **kwargs):
     agg_cmd = "python aggregate_pred.py {} --with_score".format(
         pred_dir
     )
-    eval_cmd = "python partial_evaluate.py {} agg_pred.json".format(
+    eval_cmd = "python partial_evaluate.py {} {}".format(
+        os.path.join(pred_dir, 'agg_pred.json'),
         squad_path
     )
     return [agg_cmd, eval_cmd]
