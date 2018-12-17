@@ -6,19 +6,21 @@ import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='aggregating multiple preds')
-    parser.add_argument('--pred_dir', type=str, default='./preds',
+    parser.add_argument('pred_dir', type=str, default='./preds',
                         help='Prediction files directory')
     parser.add_argument('--with_score', default=False, action='store_true')
     args = parser.parse_args()
 
     # Load prediction files
     preds = []
-    for path in os.listdir(args.pred_dir):
-        if os.path.isdir(os.path.join(args.pred_dir, path)):
-            continue
-        with open(os.path.join(args.pred_dir, path)) as prediction_file:
-            preds.append(json.load(prediction_file))
-        print('Aggregating {} ...'.format(path))
+    for root, _, files in sorted(os.walk(args.pred_dir)):
+        for filename in files:
+            if filename == 'agg_pred.json':
+                print('Skipping file {}'.format(filename))
+                continue
+            with open(os.path.join(root, filename)) as prediction_file:
+                preds.append(json.load(prediction_file))
+            print('Aggregating {} ...'.format(os.path.join(root, filename)))
     
     # Aggregate pred dictionaries
     total_qids = [p.keys() for p in preds]
@@ -34,7 +36,10 @@ if __name__ == '__main__':
         )
    
     # Dump as a file
-    with open(os.path.join('./new_pred.json'), 'w') as fp:
+    with open(os.path.join(args.pred_dir, 'agg_pred.json'), 'w') as fp:
         json.dump(predictions, fp)
     assert len(predictions) == len(total_qids)
     print('Total {} answers'.format(len(total_qids)))
+    print('Prediction saved as {}'.format(
+        os.path.join(args.pred_dir, 'agg_pred.json'))
+    )

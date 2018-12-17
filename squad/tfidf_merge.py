@@ -15,7 +15,7 @@ from scipy.sparse import csr_matrix, hstack, vstack, save_npz, load_npz
 from tqdm import tqdm
 
 
-def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
+def merge_tfidf(qid2emb, p_emb_dir, d2q_path, context_path,
                 tfidf_weight, sparse, 
                 top_n_docs, cuda, **kwargs):
 
@@ -60,12 +60,7 @@ def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
 
         # Load question embedding vectors [N X D]
         q_embs = []
-        q_emb_paths = [
-            os.path.join(q_emb_dir, qid[0] + '.npz') for qid in qlist
-        ]
-        for q_emb_path in q_emb_paths:
-            assert os.path.exists(q_emb_path), q_emb_path
-            q_embs.append(load(q_emb_path))
+        q_embs = [qid2emb[qid[0]] for qid in qlist]
         q_emb = stack(q_embs) if len(q_embs) > 1 else q_embs[0]
 
         # Load emb/json for each paragraph
@@ -141,26 +136,42 @@ if __name__ == '__main__':
     # delete following lines for nsml-free implementation
     import nsml
     if nsml.IS_ON_NSML:
-        def p_load_fn(filename, **kwargs):
-            print('p load embed in', filename)
-            args.p_emb_dir = filename
-        nsml.bind(load=p_load_fn)
-        p_load_path = '%s_embed_%s' % (
-            args.iteration,
-            os.path.splitext(os.path.basename(args.context_path))[0]
-        )
-        nsml.load(p_load_path)
-
+        qid2emb = {}
         def q_load_fn(filename, **kwargs):
+            global qid2emb
             print('q load embed in', filename)
-            args.q_emb_dir = filename
+            for qid in os.listdir(filename):
+                qid_base = os.path.splitext(qid)[0]
+                qid2emb[qid_base] = np.load(os.path.join(filename, qid))['arr_0']
+
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
             args.iteration
         )
-        nsml.load(q_load_path)
+        nsml.load(q_load_path, session=args.embed_session)
 
-    # Merge using tfidf
-    predictions = merge_tfidf(**args.__dict__)
-    with open(args.pred_path, 'w') as fp:
-        json.dump(predictions, fp)
+        def p_load_fn(filename, **kwargs):
+            global qid2emb
+            print('p load embed in', filename)
+            args.p_emb_dir = filename
+
+            # Merge using tfidf
+            predictions = merge_tfidf(qid2emb, **args.__dict__)
+            with open(args.pred_path, 'w') as fp:
+                json.dump(predictions, fp)
+
+        nsml.bind(load=p_load_fn)
+        p_load_path = '%s_embed_%s' % (
+            args.iteration,
+            os.path.splitext(os.path.basename(args.context_path))[0].replace(
+                '.', '_'
+            )
+        )
+        nsml.load(p_load_path, session=args.embed_session)
+
+    else:
+        raise NotImplementedError
+        # Merge using tfidf
+        predictions = merge_tfidf(**args.__dict__)
+        with open(args.pred_path, 'w') as fp:
+            json.dump(predictions, fp)
