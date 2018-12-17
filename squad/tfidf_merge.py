@@ -60,12 +60,7 @@ def merge_tfidf(qid2emb, p_emb_dir, d2q_path, context_path,
 
         # Load question embedding vectors [N X D]
         q_embs = []
-        print([qid for qid in qlist])
-        exit()
         q_embs = [qid2emb[qid[0]] for qid in qlist]
-        for q_emb_path in q_emb_paths:
-            assert os.path.exists(q_emb_path), q_emb_path
-            q_embs.append(load(q_emb_path))
         q_emb = stack(q_embs) if len(q_embs) > 1 else q_embs[0]
 
         # Load emb/json for each paragraph
@@ -147,7 +142,7 @@ if __name__ == '__main__':
             print('q load embed in', filename)
             for qid in os.listdir(filename):
                 qid_base = os.path.splitext(qid)[0]
-                qid2emb[qid] = np.load(os.path.join(filename, qid_base))
+                qid2emb[qid_base] = np.load(os.path.join(filename, qid))
 
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
