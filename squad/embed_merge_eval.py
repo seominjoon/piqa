@@ -52,7 +52,7 @@ def embed_question(nsml, draft, load_dir, iteration,
         q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
                        " --load_dir {} --iteration {} --predict_file {}" +
                        " --question_embed_dir {}" +
-                       " --bert_model_option 'base_uncased'" +
+                       " --bert_model_option base_uncased" +
     	               " --max_answer_length 15" +
                        " --span_threshold {}").format(
            '' if nsml else ' --no_cuda',
@@ -95,7 +95,7 @@ def embed_context(nsml, draft, load_dir, iteration,
             c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}" +
                            " --load_dir {} --iteration {} --predict_file {}" +
                            " --context_embed_dir {}" +
-                           " --bert_model_option 'base_uncased'" +
+                           " --bert_model_option base_uncased" +
                            " --max_answer_length 15 --span_threshold {}").format(
                '' if nsml else ' --no_cuda',
                ' --draft' if draft else '',
