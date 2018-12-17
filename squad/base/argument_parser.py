@@ -93,7 +93,7 @@ class ArgumentParser(argparse.ArgumentParser):
         if args.cache_path is None:
             args.cache_path = os.path.join(args.output_dir, 'cache.b')
 
-        args.load_dir = os.path.abspath(args.load_dir)
+        # args.load_dir = os.path.abspath(args.load_dir)
         args.context_emb_dir = os.path.abspath(args.context_emb_dir)
         args.question_emb_dir = os.path.abspath(args.question_emb_dir)
 

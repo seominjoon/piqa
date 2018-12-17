@@ -434,17 +434,15 @@ def embed_(args):
         import shutil
         if args.mode == 'embed_context':
             shutil.make_archive(
-                args.context_emb_dir,
+                os.path.join(filename, 'context_embs'),
                 'zip',
-                filename,
-                'context_embs'
+                args.context_emb_dir
             )
         elif args.mode == 'embed_question':
             shutil.make_archive(
-                args.question_emb_dir,
+                os.path.join(filename, 'question_embs'),
                 'zip',
-                filename,
-                'question_embs'
+                args.question_emb_dir
             )
         else:
             raise NotImplementedError
