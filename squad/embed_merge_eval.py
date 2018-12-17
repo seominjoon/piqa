@@ -15,11 +15,14 @@ from pprint import pprint
 
 def run_commands(cmds, **kwargs):
     start = time.time()
+    pids = []
     for cmd_idx, cmd in enumerate(cmds):
         print('\nCommand #{}\n{}'.format(cmd_idx, cmd))
-        if kwargs['skip_embed']:
-            subprocess.Popen(cmd.split(' '))
+        if kwargs['skip_embed'] and 'tfidf_emrge.py' in cmd:
+            pids.append(subprocess.Popen(cmd.split(' ')))
         else:
+            exit_codes = [p.wait() for p in pids]
+            print('Completed asynchronous processes:', exit_codes)
             status = subprocess.call(cmd.split(' '))
             if status != 0:
                 print('Failure with exit code: {}'.format(status))
