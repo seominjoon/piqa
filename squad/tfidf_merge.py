@@ -15,7 +15,7 @@ from scipy.sparse import csr_matrix, hstack, vstack, save_npz, load_npz
 from tqdm import tqdm
 
 
-def merge_tfidf(p_emb_dir, q_emb_dir, d2q_path, context_path,
+def merge_tfidf(qid2emb, p_emb_dir, d2q_path, context_path,
                 tfidf_weight, sparse, 
                 top_n_docs, cuda, **kwargs):
 
@@ -141,26 +141,28 @@ if __name__ == '__main__':
     # delete following lines for nsml-free implementation
     import nsml
     if nsml.IS_ON_NSML:
-        question_embs = {}
+        qid2emb = {}
         def q_load_fn(filename, **kwargs):
-            global question_embs
+            global qid2emb
             print('q load embed in', filename)
-            for filename in os.listdir(filename):
-                print(filename)
-            exit(1)
+            for qid in os.listdir(filename):
+                qid2emb[qid] = np.load(os.path.join(filename, qid))
 
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
             args.iteration
         )
         nsml.load(q_load_path, session=args.embed_session)
+        print(qid2emb.keys())
+        exit(1)
 
         def p_load_fn(filename, **kwargs):
+            global qid2emb
             print('p load embed in', filename)
             args.p_emb_dir = filename
 
             # Merge using tfidf
-            predictions = merge_tfidf(**args.__dict__)
+            predictions = merge_tfidf(qid2emb, **args.__dict__)
             with open(args.pred_path, 'w') as fp:
                 json.dump(predictions, fp)
 
