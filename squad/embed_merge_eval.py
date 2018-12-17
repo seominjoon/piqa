@@ -32,7 +32,7 @@ def run_commands(cmds, **kwargs):
 
 def embed_question(nsml, draft, load_dir, iteration,
                    question_path, question_emb_dir,
-                   sparse, bert, **kwargs):
+                   no_filter, sparse, bert, **kwargs):
 
     if not bert:
         q_embed_cmd = ("python main.py dev --mode embed_question{}{}{}" +
@@ -50,10 +50,10 @@ def embed_question(nsml, draft, load_dir, iteration,
         )
     else:
         q_embed_cmd = ("python bert/run_piqa3.py --do_embed_question{}{}{}" +
-                      " --load_dir {} --iteration {} --predict_file {}" +
-                      " --question_emb_dir {}" +
-			   		  " --bert_model_option 'base_uncased'" +
-			          " --max_answer_length 15" +
+                       " --load_dir {} --iteration {} --predict_file {}" +
+                       " --question_emb_dir {}" +
+                       " --bert_model_option 'base_uncased'" +
+    	               " --max_answer_length 15" +
                       " --span_threshold {} --batch_size {}").format(
            '' if nsml else ' --no_cuda',
            ' --draft' if draft else '',
