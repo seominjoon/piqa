@@ -30,10 +30,11 @@ def run_commands(cmds, **kwargs):
     return str(datetime.timedelta(seconds=time.time()-start))
 
 
-def embed_question(nsml, draft, load_dir, iteration,
+def embed_question(nsml, draft, load_dir, iteration, large,
                    question_path, question_emb_dir, batch_size,
                    no_filter, sparse, bert, **kwargs):
 
+    # Baseline
     if not bert:
         q_embed_cmd = ("python main.py dev --mode embed_question{}{}{}" +
                        " --load_dir {} --iteration {} --test_path {}"
@@ -49,20 +50,39 @@ def embed_question(nsml, draft, load_dir, iteration,
             question_emb_dir
         )
     else:
-        q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
-                       " --load_dir {} --iteration {} --predict_file {}" +
-                       " --question_embed_dir {}" +
-                       " --bert_model_option base_uncased" +
-    	               " --max_answer_length 15" +
-                       " --span_threshold {}").format(
-           '' if nsml else ' --no_cuda',
-           ' --draft' if draft else '',
-           load_dir,
-           iteration,
-           question_path,
-           'dev-v1_1-question',
-           -1e9 if no_filter else 3,
-       )
+        # BERT-base
+        if not large:
+            q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
+                           " --load_dir {} --iteration {} --predict_file {}" +
+                           " --question_embed_dir {}" +
+                           " --bert_model_option base_uncased" +
+                           " --max_answer_length 15" +
+                           " --span_threshold {}").format(
+                '' if nsml else ' --no_cuda',
+                ' --draft' if draft else '',
+                load_dir,
+                iteration,
+                question_path,
+                'dev-v1_1-question',
+                -1e9 if no_filter else 3,
+           )
+        # BERT-large
+        else:
+            q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
+                           " --load_dir {} --iteration {} --predict_file {}" +
+                           " --context_embed_dir {}" +
+		           " --predict_batch_size 4" +
+			   " --parallel" +
+                           " --max_answer_length 15 --span_threshold {}").format(
+                '' if nsml else ' --no_cuda',
+                ' --draft' if draft else '',
+                load_dir,
+                iteration,
+                question_path,
+                os.path.splitext(os.path.basename(context_path))[0].replace(
+                    '.', '_'),
+                -1e9 if no_filter else 3,
+            )
 
     return [q_embed_cmd]
 
@@ -74,6 +94,7 @@ def embed_context(nsml, draft, load_dir, iteration,
     cmds = []
     for context_path, context_emb_dir, pred_path in zip(
         context_paths, context_emb_dirs, pred_paths):
+        # Baseline
         if not bert:
             c_embed_cmd = ("python main.py dev --mode embed_context{}{}{}" +
                            " --load_dir {} --iteration {} --test_path {}" +
@@ -92,20 +113,41 @@ def embed_context(nsml, draft, load_dir, iteration,
                 batch_size
             )
         else:
-            c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}" +
-                           " --load_dir {} --iteration {} --predict_file {}" +
-                           " --context_embed_dir {}" +
-                           " --bert_model_option base_uncased" +
-                           " --max_answer_length 15 --span_threshold {}").format(
-               '' if nsml else ' --no_cuda',
-               ' --draft' if draft else '',
-               load_dir,
-               iteration,
-               context_path,
-               os.path.splitext(os.path.basename(context_path))[0].replace(
-                   '.', '_'),
-               -1e9 if no_filter else 3,
-           )
+            # BERT-base
+            if not large:
+                c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}" +
+                               " --load_dir {} --iteration {}" +
+                               " --predict_file {} --context_embed_dir {}" +
+                               " --bert_model_option base_uncased" +
+                               " --max_answer_length 15" +
+                               " --span_threshold {}").format(
+                    '' if nsml else ' --no_cuda',
+                    ' --draft' if draft else '',
+                    load_dir,
+                    iteration,
+                    context_path,
+                    os.path.splitext(os.path.basename(context_path))[0].replace(
+                        '.', '_'),
+                    -1e9 if no_filter else 3,
+                )
+            # BERT-large
+            else:
+                c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}" +
+                               " --load_dir {} --iteration {}" +
+                               " --predict_file {}" +
+                               " --context_embed_dir {}" +
+			       " --predict_batch_size 4 --parallel" +
+                               " --max_answer_length 15" +
+                               " --span_threshold {}").format(
+                    '' if nsml else ' --no_cuda',
+                    ' --draft' if draft else '',
+                    load_dir,
+                    iteration,
+                    context_path,
+                    os.path.splitext(os.path.basename(context_path))[0].replace(
+                        '.', '_'),
+                    -1e9 if no_filter else 3,
+                )
         if not kwargs['skip_embed']:
             cmds.append(c_embed_cmd)
         merge_cmd = merge(
@@ -176,7 +218,9 @@ if __name__ == '__main__':
     parser.add_argument('--draft', default=False, action='store_true',
                         help='Use draft (default=local)')
     parser.add_argument('--bert', default=False, action='store_true',
-                        help='Use Bert')
+                        help='Use Bert base')
+    parser.add_argument('--large', default=False, action='store_true',
+                        help='Use Bert Large')
     parser.add_argument('--load_dir', type=str, 
                         default='piqateam_minjoon_squad_2_34')
                         # default='piqateam_minjoon_squad_2_36')
@@ -234,8 +278,11 @@ if __name__ == '__main__':
         from nsml import DATASET_PATH
         nsml_data_home = os.path.join(DATASET_PATH, 'train')
         if args.bert:
-            args.load_dir = 'piqateam/squad_bert_2/76'
             args.iteration = '3'
+            if args.large:
+                args.load_dir = 'piqateam/squad_bert_2/126'
+            else:
+                args.load_dir = 'piqateam/squad_bert_2/76'
         else:
             args.load_dir = 'piqateam/minjoon_squad_2/34' # (baseline)
             args.iteration = '35501'
@@ -244,7 +291,10 @@ if __name__ == '__main__':
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
         if args.bert:
-            args.embed_session = 'piqateam/squad_piqa_181206/??'
+            if args.large:
+                args.embed_session = 'piqateam/squad_piqa_181206/??'
+            else:
+                args.embed_session = 'piqateam/squad_piqa_181206/??'
         else:
             args.embed_session = 'piqateam/squad_piqa_181206/108'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
