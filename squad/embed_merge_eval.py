@@ -189,8 +189,8 @@ def aggregate(squad_path, pred_dir, **kwargs):
         pred_dir
     )
     eval_cmd = "python partial_evaluate.py {} {}".format(
-        os.path.join(pred_dir, 'agg_pred.json'),
-        squad_path
+        squad_path,
+        os.path.join(pred_dir, 'agg_pred.json')
     )
     return [agg_cmd, eval_cmd]
     
