@@ -60,9 +60,9 @@ def merge_tfidf(qid2emb, p_emb_dir, d2q_path, context_path,
 
         # Load question embedding vectors [N X D]
         q_embs = []
-        q_emb_paths = [
-            os.path.join(q_emb_dir, qid[0] + '.npz') for qid in qlist
-        ]
+        print([qid for qid in qlist])
+        exit()
+        q_embs = [qid2emb[qid[0]] for qid in qlist]
         for q_emb_path in q_emb_paths:
             assert os.path.exists(q_emb_path), q_emb_path
             q_embs.append(load(q_emb_path))
@@ -146,15 +146,14 @@ if __name__ == '__main__':
             global qid2emb
             print('q load embed in', filename)
             for qid in os.listdir(filename):
-                qid2emb[qid] = np.load(os.path.join(filename, qid))
+                qid_base = os.path.splitext(qid)[0]
+                qid2emb[qid] = np.load(os.path.join(filename, qid_base))
 
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
             args.iteration
         )
         nsml.load(q_load_path, session=args.embed_session)
-        print(qid2emb.keys())
-        exit(1)
 
         def p_load_fn(filename, **kwargs):
             global qid2emb
