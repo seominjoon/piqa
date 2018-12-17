@@ -142,7 +142,7 @@ if __name__ == '__main__':
             print('q load embed in', filename)
             for qid in os.listdir(filename):
                 qid_base = os.path.splitext(qid)[0]
-                qid2emb[qid_base] = np.load(os.path.join(filename, qid))
+                qid2emb[qid_base] = np.load(os.path.join(filename, qid))['arr_0']
 
         nsml.bind(load=q_load_fn)
         q_load_path = '%s_embed_dev-v1_1-question' % (
