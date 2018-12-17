@@ -18,9 +18,6 @@ def run_commands(cmds, **kwargs):
     pids = []
     for cmd_idx, cmd in enumerate(cmds):
         print('\nCommand #{}\n{}'.format(cmd_idx, cmd))
-        if 'run_piqa' in cmd and kwargs['bert']:
-            os.chdir('bert')
-        # Asynchronous processes for merging
         if kwargs['skip_embed'] and 'tfidf_merge.py' in cmd:
             pids.append(subprocess.Popen(cmd.split(' ')))
         else:
@@ -30,8 +27,6 @@ def run_commands(cmds, **kwargs):
             if status != 0:
                 print('Failure with exit code: {}'.format(status))
                 # return str(datetime.timedelta(seconds=time.time()-start))
-        if 'run_piqa' in cmd and kwargs['bert']:
-            os.chdir('..')
     return str(datetime.timedelta(seconds=time.time()-start))
 
 
@@ -54,7 +49,7 @@ def embed_question(nsml, draft, load_dir, iteration,
             question_emb_dir
         )
     else:
-        q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}" +
+        q_embed_cmd = ("python bert/run_piqa3.py --do_embed_question{}{}" +
                        " --load_dir {} --iteration {} --predict_file {}" +
                        " --question_emb_dir {}" +
                        " --bert_model_option 'base_uncased'" +
@@ -98,7 +93,7 @@ def embed_context(nsml, draft, load_dir, iteration,
                 batch_size
             )
         else:
-            c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}" +
+            c_embed_cmd = ("python bert/run_piqa3.py --do_embed_context{}{}" +
                            " --load_dir {} --iteration {} --predict_file {}" +
                            " --context_emb_dir {}" +
                            " --bert_model_option 'base_uncased'" +
