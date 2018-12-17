@@ -134,13 +134,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # delete following lines for nsml-free implementation
-    import nsml
+    import nsml, shutil
     if nsml.IS_ON_NSML:
         qid2emb = {}
         def q_load_fn(filename, **kwargs):
             global qid2emb
+            shutil.unpack_archive(
+                os.path.join(filename, 'question_embs.zip'),
+                filename
+            )
             print('q load embed in', filename)
             for qid in os.listdir(filename):
+                if os.path.isdir(os.path.join(filename, qid)):
+                    print('Skipping directory: {}'.format(qid))
+                    continue
                 qid_base = os.path.splitext(qid)[0]
                 qid2emb[qid_base] = np.load(os.path.join(filename, qid))['arr_0']
 
