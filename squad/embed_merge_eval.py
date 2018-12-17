@@ -54,7 +54,7 @@ def embed_question(nsml, draft, load_dir, iteration,
                        " --question_embed_dir {}" +
                        " --bert_model_option 'base_uncased'" +
     	               " --max_answer_length 15" +
-                       " --span_threshold {} --predict_batch_size {}").format(
+                       " --span_threshold {}").format(
            '' if nsml else ' --no_cuda',
            ' --draft' if draft else '',
            load_dir,
@@ -62,7 +62,6 @@ def embed_question(nsml, draft, load_dir, iteration,
            question_path,
            'dev-v1_1-question',
            -1e9 if no_filter else 3,
-           batch_size
        )
 
     return [q_embed_cmd]
@@ -97,8 +96,7 @@ def embed_context(nsml, draft, load_dir, iteration,
                            " --load_dir {} --iteration {} --predict_file {}" +
                            " --context_embed_dir {}" +
                            " --bert_model_option 'base_uncased'" +
-                           " --max_answer_length 15 --span_threshold {}" +
-                           " --predict_batch_size {}").format(
+                           " --max_answer_length 15 --span_threshold {}").format(
                '' if nsml else ' --no_cuda',
                ' --draft' if draft else '',
                load_dir,
@@ -107,7 +105,6 @@ def embed_context(nsml, draft, load_dir, iteration,
                os.path.splitext(os.path.basename(context_path))[0].replace(
                    '.', '_'),
                -1e9 if no_filter else 3,
-               batch_size
            )
         if not kwargs['skip_embed']:
             cmds.append(c_embed_cmd)
@@ -246,7 +243,7 @@ if __name__ == '__main__':
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
         if args.bert:
-            args.embed_session = 'piqateam/squad_piqa_181206/??'
+            args.embed_session = 'piqateam/squad_piqa_181206/108'
         else:
             args.embed_session = 'piqateam/squad_piqa_181206/51'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
