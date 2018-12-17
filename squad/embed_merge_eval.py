@@ -291,9 +291,9 @@ if __name__ == '__main__':
         args.question_emb_dir = './question_emb'
         if args.bert:
             if args.large:
-                args.embed_session = 'piqateam/squad_piqa_181206/??'
+                args.embed_session = 'piqateam/squad_piqa_181217/22'
             else:
-                args.embed_session = 'piqateam/squad_piqa_181206/??'
+                args.embed_session = 'piqateam/squad_piqa_181217/11'
         else:
             args.embed_session = 'piqateam/squad_piqa_181206/108'
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
