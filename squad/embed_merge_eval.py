@@ -18,7 +18,7 @@ def run_commands(cmds, **kwargs):
     pids = []
     for cmd_idx, cmd in enumerate(cmds):
         print('\nCommand #{}\n{}'.format(cmd_idx, cmd))
-        if kwargs['skip_embed'] and 'tfidf_emrge.py' in cmd:
+        if kwargs['skip_embed'] and 'tfidf_merge.py' in cmd:
             pids.append(subprocess.Popen(cmd.split(' ')))
         else:
             exit_codes = [p.wait() for p in pids]
@@ -32,36 +32,12 @@ def run_commands(cmds, **kwargs):
 
 def embed_question(nsml, draft, load_dir, iteration,
                    question_path, question_emb_dir,
-                   sparse, **kwargs):
+                   sparse, bert, **kwargs):
 
-    q_embed_cmd = ("python main.py dev --mode embed_question{}{}{}" +
-                   " --load_dir {} --iteration {} --test_path {}"
-                   " --question_emb_dir {}" +
-                   " --glove_name glove_squad --preload" +
-                   " --num_heads 2 --phrase_filter").format(
-        ' --cuda' if nsml else '',
-        ' --draft' if draft else '',
-        ' --sparse' if sparse else '',
-        load_dir,
-        iteration,
-        question_path,
-        question_emb_dir
-    )
-
-    return [q_embed_cmd]
-
-
-def embed_context(nsml, draft, load_dir, iteration,
-                  context_paths, context_emb_dirs, pred_paths,
-                  no_filter, sparse, batch_size, **kwargs):
-
-    cmds = []
-    for context_path, context_emb_dir, pred_path in zip(
-        context_paths, context_emb_dirs, pred_paths):
-        c_embed_cmd = ("python main.py dev --mode embed_context{}{}{}" +
-                       " --load_dir {} --iteration {} --test_path {}" +
-                       " --context_emb_dir {}" +
-                       " --filter_th {} --batch_size {}" +
+    if not bert:
+        q_embed_cmd = ("python main.py dev --mode embed_question{}{}{}" +
+                       " --load_dir {} --iteration {} --test_path {}"
+                       " --question_emb_dir {}" +
                        " --glove_name glove_squad --preload" +
                        " --num_heads 2 --phrase_filter").format(
             ' --cuda' if nsml else '',
@@ -69,11 +45,70 @@ def embed_context(nsml, draft, load_dir, iteration,
             ' --sparse' if sparse else '',
             load_dir,
             iteration,
-            context_path,
-            context_emb_dir,
-            0.0 if no_filter else 0.8,
-            batch_size
+            question_path,
+            question_emb_dir
         )
+    else:
+        q_embed_cmd = ("python run_piqa3.py --do_embed_question{}{}{}" +
+                      " --load_dir {} --iteration {} --predict_file {}" +
+                      " --question_emb_dir {}" +
+			   		  " --bert_model_option 'base_uncased'" +
+			          " --max_answer_length 15" +
+                      " --span_threshold {} --batch_size {}").format(
+           '' if nsml else ' --no_cuda',
+           ' --draft' if draft else '',
+           load_dir,
+           iteration,
+           question_path,
+           'dev-v1_1-question',
+           -1e9 if no_filter else 3,
+           batch_size
+       )
+
+    return [q_embed_cmd]
+
+
+def embed_context(nsml, draft, load_dir, iteration,
+                  context_paths, context_emb_dirs, pred_paths,
+                  no_filter, sparse, bert, batch_size, **kwargs):
+
+    cmds = []
+    for context_path, context_emb_dir, pred_path in zip(
+        context_paths, context_emb_dirs, pred_paths):
+        if not bert:
+            c_embed_cmd = ("python main.py dev --mode embed_context{}{}{}" +
+                           " --load_dir {} --iteration {} --test_path {}" +
+                           " --context_emb_dir {}" +
+                           " --filter_th {} --batch_size {}" +
+                           " --glove_name glove_squad --preload" +
+                           " --num_heads 2 --phrase_filter").format(
+                ' --cuda' if nsml else '',
+                ' --draft' if draft else '',
+                ' --sparse' if sparse else '',
+                load_dir,
+                iteration,
+                context_path,
+                context_emb_dir,
+                0.0 if no_filter else 0.8,
+                batch_size
+            )
+        else:
+            c_embed_cmd = ("python run_piqa3.py --do_embed_context{}{}{}" +
+                           " --load_dir {} --iteration {} --predict_file {}" +
+                           " --context_emb_dir {}" +
+                           " --bert_model_option 'base_uncased'" +
+                           " --max_answer_length 15" +
+                           " --span_threshold {} --batch_size {}").format(
+               '' if nsml else ' --no_cuda',
+               ' --draft' if draft else '',
+               load_dir,
+               iteration,
+               context_path,
+               os.path.splitext(os.path.basename(context_path))[0].replace(
+                   '.', '_'),
+               -1e9 if no_filter else 3,
+               batch_size
+           )
         if not kwargs['skip_embed']:
             cmds.append(c_embed_cmd)
         merge_cmd = merge(
@@ -142,6 +177,8 @@ if __name__ == '__main__':
                         help='Use nsml (default=local)')
     parser.add_argument('--draft', default=False, action='store_true',
                         help='Use draft (default=local)')
+    parser.add_argument('--bert', default=False, action='store_true',
+                        help='Use Bert')
     parser.add_argument('--load_dir', type=str, 
                         default='piqateam_minjoon_squad_2_34')
                         # default='piqateam_minjoon_squad_2_36')
