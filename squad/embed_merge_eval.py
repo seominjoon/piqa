@@ -31,7 +31,7 @@ def run_commands(cmds, **kwargs):
 
 
 def embed_question(nsml, draft, load_dir, iteration,
-                   question_path, question_emb_dir,
+                   question_path, question_emb_dir, batch_size,
                    no_filter, sparse, bert, **kwargs):
 
     if not bert:
