@@ -63,7 +63,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                 load_dir,
                 iteration,
                 question_path,
-                'dev-v1_1-question',
+                'question',
                 -1e9 if no_filter else 3,
            )
         # BERT-large
@@ -79,7 +79,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                 load_dir,
                 iteration,
                 question_path,
-                'dev-v1_1-question',
+                'question',
                 -1e9 if no_filter else 3,
             )
 
@@ -125,8 +125,7 @@ def embed_context(nsml, draft, load_dir, iteration, large,
                     load_dir,
                     iteration,
                     context_path,
-                    os.path.splitext(os.path.basename(context_path))[0].replace(
-                        '.', '_'),
+                    context_emb_dir,
                     -1e9 if no_filter else 3,
                 )
             # BERT-large
@@ -143,8 +142,7 @@ def embed_context(nsml, draft, load_dir, iteration, large,
                     load_dir,
                     iteration,
                     context_path,
-                    os.path.splitext(os.path.basename(context_path))[0].replace(
-                        '.', '_'),
+                    context_emb_dir,
                     -1e9 if no_filter else 3,
                 )
         if not kwargs['skip_embed']:
