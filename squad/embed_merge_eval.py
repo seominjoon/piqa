@@ -157,6 +157,8 @@ def embed_context(nsml, draft, load_dir, iteration, large,
             context_emb_dir=context_emb_dir,
             pred_path=pred_path,
             iteration=iteration,
+            bert=bert,
+            large=large,
             **kwargs
         )
         cmds += merge_cmd
