@@ -423,39 +423,34 @@ def serve(args):
 
 # Delete the following function for nsml-free implementation
 def embed_(args):
-    def save(filename, **kwargs):
-        if not os.path.exists(filename):
-            os.makedirs(filename)
-        # args.context_emb_dir = filename # Instead, use zip
-        # args.question_emb_dir = filename
-        print('save embed in', args.context_emb_dir, args.question_emb_dir)
-        embed(args)
-
-        import shutil
-        if args.mode == 'embed_context':
-            shutil.make_archive(
-                os.path.join(filename, 'context_embs'),
-                'zip',
-                args.context_emb_dir
-            )
-        elif args.mode == 'embed_question':
-            shutil.make_archive(
-                os.path.join(filename, 'question_embs'),
-                'zip',
-                args.question_emb_dir
-            )
-        else:
-            raise NotImplementedError
-        print('saved embed in', filename, os.listdir(filename))
-        
-    import nsml
-    nsml.bind(save=save)
-    save_path = '%s_embed_%s' % (
-        args.iteration,
-        os.path.splitext(os.path.basename(args.test_path))[0]
+    embed(args)
+    save_dir = (
+        args.context_emb_dir
+        if args.mode == 'embed_context' else args.question_emb_dir
     )
-    print(save_path)
-    nsml.save(save_path)
+    print('save embed in', args.context_emb_dir, args.question_emb_dir)
+
+    # Save in NSML_NFS_OUTPUT
+    import shutil
+    from nsml import NSML_NFS_OUTPUT, DATASET_PATH
+    shutil.make_archive(
+        os.path.join(
+            NSML_NFS_OUTPUT,
+            '{}_embed_{}_baseline'.format(
+                args.iteration,
+                os.path.splitext(os.path.basename(args.test_path))[0],
+            ).replace('.', '_')
+        ),
+        'zip',
+        save_dir
+    )
+    print('saved embed in', DATASET_PATH, os.listdir(DATASET_PATH))
+
+    # Remove files
+    for filename in os.listdir(save_dir):
+        file_path = os.path.join(save_dir, filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
 
 
 def main():
