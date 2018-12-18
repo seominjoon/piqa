@@ -143,7 +143,7 @@ if __name__ == '__main__':
         shutil.unpack_archive(
             os.path.join(
                 nsml.DATASET_PATH,
-                '{}_embed_dev_v1_1-question'.format(
+                '{}_embed_dev_v1_1-question.zip'.format(
                     args.iteration,
                 )
             ),
@@ -167,7 +167,7 @@ if __name__ == '__main__':
         shutil.unpack_archive(
             os.path.join(
                 nsml.DATASET_PATH,
-                '{}_embed_{}'.format(
+                '{}_embed_{}.zip'.format(
                     args.iteration,
                     os.path.splitext(os.path.basename(args.context_path))[0],
                 ).replace('.', '_')
