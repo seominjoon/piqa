@@ -275,7 +275,7 @@ if __name__ == '__main__':
 
     if args.nsml:
         from nsml import DATASET_PATH
-        nsml_data_home = os.path.join(DATASET_PATH, 'train')
+        nsml_data_home = os.path.join(DATASET_PATH, '181217')
         if args.bert:
             args.iteration = '3'
             if args.large:
@@ -301,7 +301,7 @@ if __name__ == '__main__':
         )
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
         args.d2q_path = os.path.join(nsml_data_home, 'd2q_30.json')
-        args.context_paths = [os.path.join(nsml_data_home,
+        args.context_paths = [os.path.join(DATASET_PATH,
             'top30/dev-v1.1-top30docs-{}.json'.format(k)) 
             for k in range(100)]
         args.question_path = os.path.join(nsml_data_home,
