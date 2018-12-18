@@ -167,11 +167,11 @@ if __name__ == '__main__':
         shutil.unpack_archive(
             os.path.join(
                 nsml.DATASET_PATH,
-                '{}_embed_{}.zip'.format(
+                '{}_embed_{}'.format(
                     args.iteration,
                     os.path.splitext(os.path.basename(args.context_path))[0],
                 ).replace('.', '_')
-            ),
+            ) + '.zip',
             args.p_emb_dir,
             format='zip',
         )
