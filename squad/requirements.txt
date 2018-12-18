@@ -7,7 +7,7 @@ allennlp==0.6.1
 tqdm
 gensim
 
-faiss
+# faiss
 nmslib
 
 tornado

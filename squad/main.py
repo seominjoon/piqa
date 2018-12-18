@@ -428,7 +428,7 @@ def embed_(args):
         args.context_emb_dir
         if args.mode == 'embed_context' else args.question_emb_dir
     )
-    print('save embed in', args.context_emb_dir, args.question_emb_dir)
+    print('save embed in', save_dir)
 
     # Save in NSML_NFS_OUTPUT
     import shutil
@@ -436,7 +436,7 @@ def embed_(args):
     shutil.make_archive(
         os.path.join(
             NSML_NFS_OUTPUT,
-            '{}_embed_{}_baseline'.format(
+            '{}_embed_{}'.format(
                 args.iteration,
                 os.path.splitext(os.path.basename(args.test_path))[0],
             ).replace('.', '_')

@@ -16,3 +16,4 @@ squad_base/
 
 bert/setup.py
 bert/.nsmlignore
+bert/Makefile
