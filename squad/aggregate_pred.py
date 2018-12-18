@@ -15,7 +15,7 @@ if __name__ == '__main__':
     preds = []
     for root, _, files in sorted(os.walk(args.pred_dir)):
         for filename in files:
-            if filename == 'agg_pred.json':
+            if root == args.pred_dir or filename == '.DS_Store':
                 print('Skipping file {}'.format(filename))
                 continue
             with open(os.path.join(root, filename)) as prediction_file:
