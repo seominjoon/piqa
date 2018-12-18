@@ -78,7 +78,10 @@ def merge_tfidf(qid2emb, p_emb_dir, d2q_path, context_path,
 
         # Phrase embedding stack
         p_embs = [load(emb_path) for emb_path in p_emb_paths]
-        p_embs = [emb for emb in p_embs if len(emb.shape) > 0]
+        p_embs = [
+            emb for emb in p_embs
+            if all([dim > 0 for dim in emb.shape]) and len(emb.shape) > 0
+        ]
         if len(p_embs) == 0:
             continue
         p_emb = stack(p_embs) if len(p_embs) > 1 else p_embs[0]
