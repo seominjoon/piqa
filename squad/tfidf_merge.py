@@ -144,7 +144,7 @@ if __name__ == '__main__':
         # Load question vectors
         shutil.unpack_archive(
             os.path.join(
-                nsml.DATASET_PATH,
+                nsml.DATASET_PATH, 'outputs',
                 '{}_embed_dev-v1_1-question{}{}.zip'.format(
                     args.iteration,
                     '_bert' if args.bert else '',
@@ -170,7 +170,7 @@ if __name__ == '__main__':
         # Load phrase vectors
         shutil.unpack_archive(
             os.path.join(
-                nsml.DATASET_PATH,
+                nsml.DATASET_PATH, 'outputs',
                 '{}_embed_{}{}{}'.format(
                     args.iteration,
                     os.path.splitext(os.path.basename(args.context_path))[0],
