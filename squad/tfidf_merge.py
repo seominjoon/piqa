@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 def merge_tfidf(qid2emb, p_emb_dir, d2q_path, context_path,
                 tfidf_weight, sparse, 
-                top_n_docs, cuda, **kwargs):
+                top_n_docs, **kwargs):
 
     # Load d2q mapping, and context file
     with open(context_path, 'rb') as f:
@@ -127,8 +127,10 @@ if __name__ == '__main__':
     parser.add_argument('--tfidf-weight', type=float, default=0,
                         help='TF-IDF vector weight')
     parser.add_argument('--iteration', type=str, default='1')
-    parser.add_argument('--cuda', default=False, action='store_true',
-                        help='process np matrix with torch.cuda')
+    parser.add_argument('--bert', default=False, action='store_true',
+                        help='bert?')
+    parser.add_argument('--large', default=False, action='store_true',
+                        help='bert-large?')
     args = parser.parse_args()
 
     # delete following lines for nsml-free implementation
@@ -143,8 +145,10 @@ if __name__ == '__main__':
         shutil.unpack_archive(
             os.path.join(
                 nsml.DATASET_PATH,
-                '{}_embed_dev-v1_1-question.zip'.format(
+                '{}_embed_dev-v1_1-question{}{}.zip'.format(
                     args.iteration,
+                    '_bert' if args.bert else '',
+                    '_large' if args.large else '',
                 )
             ),
             args.q_emb_dir,
@@ -167,9 +171,11 @@ if __name__ == '__main__':
         shutil.unpack_archive(
             os.path.join(
                 nsml.DATASET_PATH,
-                '{}_embed_{}'.format(
+                '{}_embed_{}{}{}'.format(
                     args.iteration,
                     os.path.splitext(os.path.basename(args.context_path))[0],
+                    '_bert' if args.bert else '',
+                    '_large' if args.large else '',
                 ).replace('.', '_')
             ) + '.zip',
             args.p_emb_dir,
