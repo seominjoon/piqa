@@ -57,7 +57,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                            " --question_embed_dir {}" +
                            " --bert_model_option base_uncased" +
                            " --max_answer_length 15" +
-                           " --span_threshold {}").format(
+                           " --span_threshold {} --nfs").format(
                 '' if nsml else ' --no_cuda',
                 ' --draft' if draft else '',
                 load_dir,
@@ -72,7 +72,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                            " --load_dir {} --iteration {} --predict_file {}" +
                            " --question_embed_dir {}" +
 		           " --predict_batch_size 4" +
-			   " --parallel" +
+			   " --parallel --nfs" +
                            " --max_answer_length 15 --span_threshold {}").format(
                 '' if nsml else ' --no_cuda',
                 ' --draft' if draft else '',
@@ -119,7 +119,7 @@ def embed_context(nsml, draft, load_dir, iteration, large,
                                " --predict_file {} --context_embed_dir {}" +
                                " --bert_model_option base_uncased" +
                                " --max_answer_length 15" +
-                               " --span_threshold {}").format(
+                               " --span_threshold {} --nfs").format(
                     '' if nsml else ' --no_cuda',
                     ' --draft' if draft else '',
                     load_dir,
@@ -137,7 +137,7 @@ def embed_context(nsml, draft, load_dir, iteration, large,
                                " --context_embed_dir {}" +
 			       " --predict_batch_size 4 --parallel" +
                                " --max_answer_length 15" +
-                               " --span_threshold {}").format(
+                               " --span_threshold {} --nfs").format(
                     '' if nsml else ' --no_cuda',
                     ' --draft' if draft else '',
                     load_dir,
