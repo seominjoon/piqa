@@ -166,10 +166,10 @@ def embed_context(nsml, draft, load_dir, iteration, large,
 
 def merge(nsml, draft, sparse, context_path, iteration,
           d2q_path, context_emb_dir, question_emb_dir, pred_path,
-          tfidf_weight, top_n_docs, **kwargs):
+          tfidf_weight, top_n_docs, bert, large, **kwargs):
     merge_cmd = ("python tfidf_merge.py {} {} {} {} {}" +
                  " --iteration {} --tfidf-weight {}" +
-                 " --top-n-docs {}{}").format(
+                 " --top-n-docs {}{}{}{}").format(
         context_emb_dir,
         question_emb_dir,
         d2q_path,
@@ -178,7 +178,9 @@ def merge(nsml, draft, sparse, context_path, iteration,
         iteration,
         tfidf_weight,
         top_n_docs,
-        ' --sparse' if sparse else ''
+        ' --sparse' if sparse else '',
+        ' --bert' if bert else '',
+        ' --large' if large else '',
     )
     return [merge_cmd]
 
