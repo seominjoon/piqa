@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
         # Remove phrase files
         for filename in os.listdir(args.p_emb_dir):
-            file_path = os.path.join(save_dir, filename)
+            file_path = os.path.join(args.p_emb_dir, filename)
             if os.path.isfile(file_path):
                 os.remove(file_path)
 
