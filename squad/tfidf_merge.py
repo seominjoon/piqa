@@ -143,7 +143,7 @@ if __name__ == '__main__':
         shutil.unpack_archive(
             os.path.join(
                 nsml.DATASET_PATH,
-                '{}_embed_dev_v1_1-question.zip'.format(
+                '{}_embed_dev-v1_1-question.zip'.format(
                     args.iteration,
                 )
             ),
