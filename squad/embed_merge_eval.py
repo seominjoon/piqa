@@ -289,6 +289,13 @@ if __name__ == '__main__':
             # args.iteration = '28501'
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
+        if args.bert:
+            args.context_emb_base += '_bert'
+            args.question_emb_dir += '_bert'
+            if args.large:
+                args.context_emb_base += '_large'
+                args.question_emb_dir += '_large'
+
         args.embed_session = (
             'piqateam/squad_piqa_181217/' + args.embed_session
         )
