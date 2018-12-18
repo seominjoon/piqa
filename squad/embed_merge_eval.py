@@ -63,7 +63,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                 load_dir,
                 iteration,
                 question_path,
-                'question',
+                question_emb_dir,
                 -1e9 if no_filter else 3,
            )
         # BERT-large
@@ -79,7 +79,7 @@ def embed_question(nsml, draft, load_dir, iteration, large,
                 load_dir,
                 iteration,
                 question_path,
-                'question',
+                question_emb_dir,
                 -1e9 if no_filter else 3,
             )
 
