@@ -435,7 +435,7 @@ def embed_(args):
     from nsml import NSML_NFS_OUTPUT, DATASET_PATH
     shutil.make_archive(
         os.path.join(
-            NSML_NFS_OUTPUT,
+            NSML_NFS_OUTPUT, 'outputs',
             '{}_embed_{}'.format(
                 args.iteration,
                 os.path.splitext(os.path.basename(args.test_path))[0],
@@ -444,7 +444,11 @@ def embed_(args):
         'zip',
         save_dir
     )
-    print('saved embed in', DATASET_PATH, os.listdir(DATASET_PATH))
+    print(
+        'saved embed in', 
+        os.path.join(DATASET_PATH, 'outputs'),
+        os.listdir(os.path.join(DATASET_PATH, 'outputs'))
+    )
 
     # Remove files
     for filename in os.listdir(save_dir):

@@ -1,78 +1,70 @@
 #!/usr/bin/env bash
-# Basline dump
+MAX_CLUSTER=0
+TFIDF_WEIGHT=(0e+0 1e-5 3e-5 1e-4 3e-4 1e-3 3e-3 1e-2 3e-2 1e-1 3e-1 1e+0 3e+0 1e+1 3e+1 1e+2 3e+2 1e+3 3e+3 1e+4 3e+4 1e+5)
+N_DOCS=(1 2 3 5 10 20 30)
+
 : "
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 0 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 1 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 2 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 3 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 4 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 5 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 6 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 7 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 8 --batch_size 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 9 --batch_size 50'
+# Basline dump
+for i in $(seq 0 $MAX_CLUSTER)
+do 
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50'
+done
 "
 
+: "
+# Baseline TF-IDF weighting
+for i in $(seq 0 $MAX_CLUSTER)
+do
+  for weight in ${TFIDF_WEIGHT[@]} 
+  do 
+    echo '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50 --tfidf_weight' $weight
+  done
+done
+"
+
+: "
+# Baseline n-docs test
+for i in $(seq 0 $MAX_CLUSTER)
+do
+  for n_docs in ${N_DOCS[@]} 
+  do 
+    echo '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50 --tfidf_weight 1e-1 --top_n_docs' $n_docs
+  done
+done
+
 # Baseline merge
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 0 --batch_size 50 --skip_embed --embed_session 42'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 1 --batch_size 50 --skip_embed --embed_session 43'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 2 --batch_size 50 --skip_embed --embed_session 44'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 3 --batch_size 50 --skip_embed --embed_session 45'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 4 --batch_size 50 --skip_embed --embed_session 46'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 5 --batch_size 50 --skip_embed --embed_session 47'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 6 --batch_size 50 --skip_embed --embed_session 48'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 7 --batch_size 50 --skip_embed --embed_session 49'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 8 --batch_size 50 --skip_embed --embed_session 50'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 9 --batch_size 50 --skip_embed --embed_session 51'
+for i in $(seq 0 $MAX_CLUSTER)
+do 
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50 --skip_embed'
+done
+"
+
 
 : "
 # BERT-base dump
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 0 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 1 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 2 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 3 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 4 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 5 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 6 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 7 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 8 --bert'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 9 --bert'
+for i in $(seq 0 $MAX_CLUSTER)
+do 
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--bert'
+done
 
 # BERT-base merge
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 0 --skip_embed --bert --embed_session 61'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 1 --skip_embed --bert --embed_session 62'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 2 --skip_embed --bert --embed_session 63'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 3 --skip_embed --bert --embed_session 64'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 4 --skip_embed --bert --embed_session 65'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 5 --skip_embed --bert --embed_session 66'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 6 --skip_embed --bert --embed_session 67'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 7 --skip_embed --bert --embed_session 68'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 8 --skip_embed --bert --embed_session 69'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 9 --skip_embed --bert --embed_session 70'
-
-# BERT-large dump
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 0 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 1 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 2 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 3 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 4 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 5 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 6 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 7 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 8 --bert --large'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 9 --bert --large'
+for i in $(seq 0 $MAX_CLUSTER)
+do 
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--skip_embed --bert'
+done
 "
 
+
 : "
+# BERT-large dump
+for i in $(seq 0 $MAX_CLUSTER)
+do 
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--bert --large'
+done
+
 # BERT-large merge
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 0 --skip_embed --bert --large --embed_session 71'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 1 --skip_embed --bert --large --embed_session 72'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 2 --skip_embed --bert --large --embed_session 73'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 3 --skip_embed --bert --large --embed_session 74'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 4 --skip_embed --bert --large --embed_session 75'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 5 --skip_embed --bert --large --embed_session 76'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 6 --skip_embed --bert --large --embed_session 77'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 7 --skip_embed --bert --large --embed_session 78'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 8 --skip_embed --bert --large --embed_session 79'
-nsml run -d squad_piqa_181217 -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx 9 --skip_embed --bert --large --embed_session 80'
+for i in $(seq 0 $MAX_CLUSTER)
+do 
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--skip_embed --bert --large'
+done
 "
