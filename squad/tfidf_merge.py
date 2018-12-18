@@ -175,19 +175,15 @@ if __name__ == '__main__':
             args.p_emb_dir,
             format='zip',
         )
-        print('p embeded in', filename)
+        print('p embeded in', args.p_emb_dir)
 
         # Merge using tfidf
         predictions = merge_tfidf(qid2emb, **args.__dict__)
         with open(args.pred_path, 'w') as fp:
             json.dump(predictions, fp)
 
-        # Remove files
+        # Remove phrase files
         for filename in os.listdir(args.p_emb_dir):
-            file_path = os.path.join(save_dir, filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-        for filename in os.listdir(args.q_emb_dir):
             file_path = os.path.join(save_dir, filename)
             if os.path.isfile(file_path):
                 os.remove(file_path)
