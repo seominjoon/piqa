@@ -140,52 +140,60 @@ if __name__ == '__main__':
             os.mkdir(args.q_emb_dir)
         if not os.path.exists(args.p_emb_dir):
             os.makedirs(args.p_emb_dir, exist_ok=True)
+
+        # Load question vectors
+        shutil.unpack_archive(
+            os.path.join(
+                NSML_DATASET,
+                '{}_embed_dev_v1_1-question'.format(
+                    args.iteration,
+                )
+            ),
+            args.q_emb_dir,
+            format='zip',
+        )
+        print('q embed loaded in in', args.q_emb_dir)
+
+        # Save them
         qid2emb = {}
-        def q_load_fn(filename, **kwargs):
-            global qid2emb
-            shutil.unpack_archive(
-                filename,
-                args.q_emb_dir,
-                format='zip',
-            )
-            print('q load embed in', filename)
-            for qid in os.listdir(args.q_emb_dir):
-                if os.path.isdir(os.path.join(args.q_emb_dir, qid)):
-                    print('Skipping directory: {}'.format(qid))
-                    continue
-                qid_base = os.path.splitext(qid)[0]
-                qid2emb[qid_base] = np.load(
-                    os.path.join(args.q_emb_dir, qid)
-                )['arr_0']
+        for qid in os.listdir(args.q_emb_dir):
+            if os.path.isdir(os.path.join(args.q_emb_dir, qid)):
+                print('Skipping directory: {}'.format(qid))
+                continue
+            qid_base = os.path.splitext(qid)[0]
+            qid2emb[qid_base] = np.load(
+                os.path.join(args.q_emb_dir, qid)
+            )['arr_0']
 
-        nsml.bind(load=q_load_fn)
-        q_load_path = '%s_embed_dev-v1_1-question' % (
-            args.iteration
+        # Load phrase vectors
+        shutil.unpack_archive(
+            os.path.join(
+                NSML_DATASET,
+                '{}_embed_{}'.format(
+                    args.iteration,
+                    os.path.splitext(os.path.basename(args.context_path))[0],
+                ).replace('.', '_')
+            ),
+            args.p_emb_dir,
+            format='zip',
         )
-        nsml.load(q_load_path, session=args.embed_session)
+        print('p embeded in', filename)
 
-        def p_load_fn(filename, **kwargs):
-            global qid2emb
-            shutil.unpack_archive(
-                filename,
-                args.p_emb_dir,
-                format='zip',
-            )
-            print('p load embed in', filename)
+        # Merge using tfidf
+        predictions = merge_tfidf(qid2emb, **args.__dict__)
+        with open(args.pred_path, 'w') as fp:
+            json.dump(predictions, fp)
 
-            # Merge using tfidf
-            predictions = merge_tfidf(qid2emb, **args.__dict__)
-            with open(args.pred_path, 'w') as fp:
-                json.dump(predictions, fp)
+        # Remove files
+        for filename in os.listdir(args.p_emb_dir):
+            file_path = os.path.join(save_dir, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        for filename in os.listdir(args.q_emb_dir):
+            file_path = os.path.join(save_dir, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
 
-        nsml.bind(load=p_load_fn)
-        p_load_path = '%s_embed_%s' % (
-            args.iteration,
-            os.path.splitext(os.path.basename(args.context_path))[0].replace(
-                '.', '_'
-            )
-        )
-        nsml.load(p_load_path, session=args.embed_session)
 
     else:
         raise NotImplementedError
