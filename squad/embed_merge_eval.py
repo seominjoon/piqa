@@ -287,13 +287,6 @@ if __name__ == '__main__':
             # args.iteration = '28501'
         args.context_emb_base = './context_emb'
         args.question_emb_dir = './question_emb'
-        if args.bert:
-            args.context_emb_base += '_bert'
-            args.question_emb_dir += '_bert'
-            if args.large:
-                args.context_emb_base += '_large'
-                args.question_emb_dir += '_large'
-
         args.squad_path = os.path.join(nsml_data_home, 'dev-v1.1.json')
         args.d2q_path = os.path.join(nsml_data_home, 'd2q_30.json')
         args.context_paths = [os.path.join(DATASET_PATH,
