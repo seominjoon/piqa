@@ -1,42 +1,37 @@
 #!/usr/bin/env bash
-MAX_CLUSTER=0
-TFIDF_WEIGHT=(0e+0 1e-5 3e-5 1e-4 3e-4 1e-3 3e-3 1e-2 3e-2 1e-1 3e-1 1e+0 3e+0 1e+1 3e+1 1e+2 3e+2 1e+3 3e+3 1e+4 3e+4 1e+5)
-N_DOCS=(1 2 3 5 10 20 30)
+MAX_CLUSTER=9
+TFIDF_WEIGHT=(1e+1 3e+1 1e+2 3e+2 1e+3 3e+3 1e+4 3e+4 1e+5)  # (0e+0 1e-5 3e-5 1e-4 3e-4 1e-3 3e-3 1e-2 3e-2 1e-1 3e-1 1e+0 3e+0 1e+1 3e+1 1e+2 3e+2 1e+3 3e+3 1e+4 3e+4 1e+5)
+N_DOCS=(1 2 3 10 20 30)
 
 : "
 # Basline dump
 for i in $(seq 0 $MAX_CLUSTER)
 do 
-  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50'
+  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx '"$i"' --batch_size 50 --bert --large'
 done
 "
 
 : "
 # Baseline TF-IDF weighting
-for i in $(seq 0 $MAX_CLUSTER)
+for weight in ${TFIDF_WEIGHT[@]}
 do
-  for weight in ${TFIDF_WEIGHT[@]} 
+  for i in $(seq 0 4) 
   do 
-    echo '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50 --tfidf_weight' $weight
+    nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -g 0 -a '--nsml --embed_c --embed_q --cluster_split 5 --cluster_idx '"$i"' --tfidf_weight '"$weight"' --skip_embed' # --bert --large'
   done
 done
 "
 
-: "
 # Baseline n-docs test
-for i in $(seq 0 $MAX_CLUSTER)
+BEST_WEIGHT=3e-2
+for n_docs in ${N_DOCS[@]} 
 do
-  for n_docs in ${N_DOCS[@]} 
+  for i in $(seq 0 4)
   do 
-    echo '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50 --tfidf_weight 1e-1 --top_n_docs' $n_docs
+    nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -g 0 -a '--nsml --embed_c --embed_q --cluster_split 5 --cluster_idx '"$i"' --tfidf_weight '"$BEST_WEIGHT"' --top_n_docs '"$n_docs"' --skip_embed --bert --large'
   done
 done
-
-# Baseline merge
-for i in $(seq 0 $MAX_CLUSTER)
-do 
-  nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--batch_size 50 --skip_embed'
-done
+: "
 "
 
 
@@ -52,10 +47,8 @@ for i in $(seq 0 $MAX_CLUSTER)
 do 
   nsml run -d squad_piqa_nfs --nfs-output -e embed_merge_eval.py -a '--nsml --embed_c --embed_q --cluster_split 10 --cluster_idx' $i '--skip_embed --bert'
 done
-"
 
 
-: "
 # BERT-large dump
 for i in $(seq 0 $MAX_CLUSTER)
 do 
