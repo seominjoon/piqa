@@ -91,8 +91,8 @@ def embed_context(nsml, draft, load_dir, iteration, large,
                   no_filter, sparse, bert, batch_size, **kwargs):
 
     cmds = []
-    for context_path, context_emb_dir, pred_path in zip(
-        context_paths, context_emb_dirs, pred_paths):
+    for c_idx, context_path, context_emb_dir, pred_path in enumerate(zip(
+        context_paths, context_emb_dirs, pred_paths)):
         # Baseline
         if not bert:
             c_embed_cmd = ("python main.py dev --mode embed_context{}{}{}" +
@@ -153,6 +153,7 @@ def embed_context(nsml, draft, load_dir, iteration, large,
             sparse=sparse,
             context_path=context_path,
             context_emb_dir=context_emb_dir,
+            question_emb_dir=question_emb_dir + c_idx,
             pred_path=pred_path,
             iteration=iteration,
             bert=bert,
