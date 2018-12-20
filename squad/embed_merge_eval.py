@@ -86,12 +86,12 @@ def embed_question(nsml, draft, load_dir, iteration, large,
     return [q_embed_cmd]
 
 
-def embed_context(nsml, draft, load_dir, iteration, large,
+def embed_context(nsml, draft, load_dir, iteration, large, question_emb_dir,
                   context_paths, context_emb_dirs, pred_paths,
                   no_filter, sparse, bert, batch_size, **kwargs):
 
     cmds = []
-    for c_idx, context_path, context_emb_dir, pred_path in enumerate(zip(
+    for c_idx, (context_path, context_emb_dir, pred_path) in enumerate(zip(
         context_paths, context_emb_dirs, pred_paths)):
         # Baseline
         if not bert:
